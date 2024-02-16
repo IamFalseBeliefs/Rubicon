@@ -154,7 +154,7 @@ function validate_ports {
 function NMAP {
 	echo -e "${Cyan}[Initialized] NMAP scan is starting${reset}"
 	sleep 1
-	sudo nmap -sV -O -T5 -o "$DIRECTORY/nmap_$ip.txt" $ip
+	sudo nmap -sV -O -T5 -p- -A -o "$DIRECTORY/nmap_$ip.txt" $ip
 	echo -e "${Cyan}[Finished] NMAP scan complete${reset}"
 }
 
