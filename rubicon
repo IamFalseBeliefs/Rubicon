@@ -251,8 +251,43 @@ function syntax {
 	echo -e "	${Cyan}[+] Thank You For Using RUBICON${reset}"
 }
 
+self_update() {
+    [ "$UPDATE_GUARD" ] && return
+    export UPDATE_GUARD=YES
+    
+    cd "$SCRIPTPATH"
+    timeout 1s git fetch --quiet
+
+                                               # in the next line
+                                               # 1. added double-quotes (see below)
+                                               # 2. removed grep expression so
+                                               # git-diff will check only script
+                                               # file
+
+    timeout 1s git diff --quiet --exit-code "origin/main" "$SCRIPTFILE"
+    [ $? -eq 1 ] && {
+        echo -e "${Blue}[Update]Found a new version of me, updating myself...${reset}"
+        if [ -n "$(git status --porcelain)" ];  # opposite is -z
+        then 
+            git stash push -m 'local changes stashed before self update' --quiet
+        fi
+        git pull --force --quiet
+        git checkout main --quiet
+        git pull --force --quiet
+        #echo "Running the new version..."
+        cd - > /dev/null                        # return to original working dir
+        #exec "$SCRIPTNAME" "${ARGS[@]}"
+
+        # Now exit this old instance
+        exit 1
+	}
+}
+
 # Main Function
 function start {
+	if [[ $update == "True" ]]; then
+		self_update
+	fi
 	if [[ -z $help ]]; then
 		directory_test $@
 		if [[ ! -z $Hostname ]]; then
@@ -335,38 +370,6 @@ function start {
 
 }
 
-self_update() {
-    [ "$UPDATE_GUARD" ] && return
-    export UPDATE_GUARD=YES
-    
-    cd "$SCRIPTPATH"
-    timeout 1s git fetch --quiet
-
-                                               # in the next line
-                                               # 1. added double-quotes (see below)
-                                               # 2. removed grep expression so
-                                               # git-diff will check only script
-                                               # file
-
-    timeout 1s git diff --quiet --exit-code "origin/main" "$SCRIPTFILE"
-    [ $? -eq 1 ] && {
-        echo -e "${Blue}[Update]Found a new version of me, updating myself...${reset}"
-        if [ -n "$(git status --porcelain)" ];  # opposite is -z
-        then 
-            git stash push -m 'local changes stashed before self update' --quiet
-        fi
-        git pull --force --quiet
-        git checkout main --quiet
-        git pull --force --quiet
-        #echo "Running the new version..."
-        cd - > /dev/null                        # return to original working dir
-        #exec "$SCRIPTNAME" "${ARGS[@]}"
-
-        # Now exit this old instance
-        exit 1
-	}
-}
-
 
 if [ "$EUID" -ne 0 ]; then 
 	echo -e "${Red}[NOTATION] Please run with sudo or as root"
@@ -402,7 +405,7 @@ while getopts "h-help-updateI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
 		s) file_size="small"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt";;
 		R) range=${OPTARG};;
 		N) interface=${OPTARG};;
-		-update) self_update;;
+		-update) update=True;;
 	esac
 done
 start
