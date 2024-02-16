@@ -364,6 +364,7 @@ self_update() {
 
         # Now exit this old instance
         exit 1
+	}
 }
 
 
