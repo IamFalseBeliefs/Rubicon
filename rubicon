@@ -1,0 +1,367 @@
+#!/bin/bash
+# // This program will automatically run pentesting commands for you \\ #
+# Variables
+USER=$(whoami)
+DIRECTORY="$(pwd)/rubicon"
+r=$(awk 'BEGIN { srand(); print int(rand() * 3) + 1 }')
+# Colors
+# Reset
+reset='\033[0m'       # Text Reset
+# Regular Colors
+Black='\033[0;30m'        # Black
+Red='\033[0;31m'          # Red
+Green='\033[0;32m'        # Green
+Yellow='\033[0;33m'       # Yellow
+Blue='\033[0;34m'         # Blue
+Purple='\033[0;35m'       # Purple
+Cyan='\033[0;36m'         # Cyan
+White='\033[0;37m'        # White
+BBlue='\033[1;34m'        # Blue
+UYellow='\033[4;33m'      # Yellow
+UCyan='\033[4;36m'        # Cyan
+On_IRed='\033[0;101m'     # Red
+
+# Wordpess Scan
+function WORDPRESS {
+	if [[ $wp_output == "verbose" ]]; then
+		echo -e "${Cyan}[WORDPRESS] Verbose only selected${reset}"
+		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu
+	elif [[ $wp_output == "output" ]]; then
+		echo -e "${Cyan}[WORDPRESS] Output only selected${reset}"
+		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu -o "$DIRECTORY/wpscan_$ip.txt"
+	elif [[ $wp_output == "both" ]] || [[ -z $wp_output ]]; then
+		echo -e "${Cyan}[WORDPRESS] Verbose and Output selected${reset}"
+		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu -o "$DIRECTORY/wpscan_$ip.txt"
+		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu
+	fi
+}
+
+# Hydra Function
+function HYDRA {
+	if [[ ! -z $u ]]; then
+		echo -e "${White}[Hydra] Using Username ${Red}$u${reset}${White} for SSH brute-force${reset}"
+	fi
+	if [[ ! -z $a ]]; then
+		echo -e "${White}[Hydra] Using Password ${Red}$a${reset}${White} for SSH brute-force${reset}"
+	fi
+	if [[ ! -z $U ]]; then
+		echo -e "${White}[Hydra] Using Username Dictionary List ${Red}$U${reset}${White} for SSH brute-force${reset}"
+		WORDLIST=$U
+	fi
+	if [[ ! -z $A ]]; then
+		echo -e "${White}[Hydra] Using Password Dictionary List ${Red}$A${reset}${White} for SSH brute-force${reset}"
+		WORDLIST=$A
+	fi
+	if [[ $combined == "True" ]]; then
+		echo -e "${White}[Hydra] Using Colon Seperated Dictionary List ${Red}$A${reset}${White} for SSH brute-force${reset}"
+		WORDLIST=$combined_file
+	fi
+	if [[ ! -z $u ]] && [[ ! -z $a ]]; then
+		sudo hydra -s 22 -l $u -p $a $ip ssh -t 5 -v
+	elif [[ $combined == True ]]; then
+		sudo hydra -s 22 -C $WORDLIST $ip ssh -t 5 -v
+	elif [[ ! -z $U ]] && [[ ! -z $A ]]; then
+		sudo hydra -s 22 -L $U -P $A $ip ssh -t 5 -v
+	elif [[ ! -z $u ]] && [[ -z $a || $A ]]; then
+		WORDLIST="/usr/share/seclists/Passwords/xato_10_million_merged.txt"
+		sudo hydra -s 22 -l $u -P WORDLIST $ip ssh -t 5 -v
+	elif [[ ! -z $a ]] && [[ -z $u || -z $U ]]; then
+		WORDLIST="/usr/share/seclists/Passwords/xato_10_million_merged.txt"
+		sudo hydra -s 22 -L $WORDLIST -p $a $ip ssh -t 5 -v
+	elif [[ ! -z $u ]] && [[ ! -z $A ]]; then
+		sudo hydra -s 22 -l $u -P $A $ip ssh -t 5 -v
+	elif [[ ! -z $U ]] && [[ ! -z $a ]]; then
+		sudo hyda -s 22 -L $U -p $a $ip ssh -t 5 -v
+	elif [[ $hydra_defualt == "True" ]] || [[ -z $hydra_defualt ]]; then
+		WORDLIST="/usr/share/seclists/Passwords/xato_10_million_merged.txt"
+		if [[ -f $WORDLIST ]]; then
+			sudo hydra -s 22 -L $WORDLIST -P $WORDLIST $ip ssh -t 5 -v
+		elif [[ ! -f $WORDLIST ]]; then
+			secDir="/usr/share/seclists/Passwords"
+			echo -e "${Red}File Faliure] You have opted to use the defualt text file for Hydra${reset}"
+			echo -e "${Red}[File Faliure] Creating file${reset}"
+			sudo cat $secDir/xato-net-10-million-passwords-10.txt $secDir/xato-net-10-million-passwords-100.txt $secDir/xato-net-10-million-passwords-1000.txt $secDir/xato-net-10-million-passwords-10000.txt $secDir/xato-net-10-million-passwords-100000.txt $secDir/xato-net-10-million-passwords-1000000.txt $secDir/xato-net-10-million-passwords-dup.txt $secDir/xato-net-10-million-passwords.txt >> $secDir/xato_10_million_merged.txt
+			echo -e "${green}[Hydra] Running Hydra attack"
+			sleep $r
+			HYDRA
+		fi
+	fi
+}
+
+# NIKTO function
+function NIKTO {
+	echo -e "${Yellow}[Initialized] NIKTO scan is starting${reset}"
+	sleep $r
+	sudo nikto --host $ip -C all -output "$DIRECTORY/nikto_$ip.txt"
+	echo -e "${Yellow}[Finished] NIKTO scan is complete${Yellow}"
+}
+
+# Gobuster function
+function GOBUSTER {
+	echo -e "${Purple}[Initialized] GOBUSTER is starting${reset}"
+	sleep $r
+	if [[ $file_size == "large" ]]; then
+		echo -e "${Purple}[GOBUSTER] Using large GOBUSTER file${reset}"
+		sudo gobuster -u http://$ip/ -w /usr/share/wordlists/dirbuster/directory-list-1.0.txt -o "$DIRECTORY/gobuster_$ip.txt" dir
+		echo -e "${Purple}[Finished] GOBUSTER scan complete${reset}"
+	elif [[ $file_size == "medium" ]]; then
+		echo -e "${Purple}[GOBUSTER] Using medium GOBUSTER file${reset}"
+		sudo gobuster -u http://$ip/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -o "$DIRECTORY/gobuster_$ip.txt" dir
+		echo -e "${Purple}[Finished] GOBUSTER scan complete${reset}"
+	elif [[ $file_size == "small" ]] || [[ -z $file_size ]]; then
+		echo -e "${Purple}[GOBUSTER] Using small/defualt GOBUSTER file${reset}"
+		sudo gobuster -u http://$ip/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -o "$DIRECTORY/gobuster_$ip.txt" dir
+		echo -e "${Purple}[Finished] GOBUSTER scan complete${reset}"
+	fi
+}
+
+# Testing which ports are open to run accordingly
+function validate_ports {
+
+	if nc -z $ip 80 ; then
+		echo -e "${Green}[Port Validation] Testing if port 80 is open${reset}"
+		sleep $r
+		echo -e "${Green}[Port Validation] Port 80 is open${reset}"
+		http="open"
+	else
+		echo -e "${Green}[Port Validation] Testing if port 80 is open${reset}"
+		sleep $r
+		echo -e "${Red}[Port Validation] Port 80 is closed${reset}"
+		
+	fi
+	if nc -z $ip 22 ; then
+		echo -e "${Green}[Port Validation] Testing if port 22 is open${reset}"
+		sleep $r
+		echo -e "${Green}[Port Validation] Port 22 is open${reset}"
+		ssh="Open"
+	else
+		echo -e "${Green}[Port Validation] Testing if port 22 is open${reset}"
+		sleep $r
+		echo -e "${Red}[Port Validation] Port 22 is closed${reset}"
+		
+	fi
+	export http
+	export ssh
+}
+
+# NMAP Function
+function NMAP {
+	echo -e "${Cyan}[Initialized] NMAP scan is starting${reset}"
+	sleep 1
+	sudo nmap -sV -O -T5 -o "$DIRECTORY/nmap_$ip.txt" $ip
+	echo -e "${Cyan}[Finished] NMAP scan complete${reset}"
+}
+
+# Creates Directory to save output files to
+function directory_test {
+	if [[ ! -d "$DIRECTORY" ]]; then
+		echo -e "${Red}[Output Directory] Output directory $DIRECTORY does not exist${reset}"
+		echo -e "${Green}[Creating Directory] Output directory $DIRECTORY is being created${reset}"
+		sudo mkdir $DIRECTORY
+		if [[ -d $DIRECTORY ]]; then
+			sleep 1.$r
+			echo -e "${Green}[Created Directory] Output directory $DIRECTORY has been created${reset}"
+		else
+			echo -e "${Red}[Invalid] You must create the directory to use the script${reset}"
+			exit 1
+		fi
+	else
+		echo -e "${Blue}[Skipping] Output directory $DIRECTORY already exists. Skipping${reset}"
+		sleep 1.3
+	fi
+}
+
+# Validate IP Address format
+function valid_ip_format {
+    local  ip=$ip
+    local  stat=1
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        OIFS=$IFS
+        IFS='.'
+        ip=($ip)
+        IFS=$OIFS
+        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
+            && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+        stat=$?
+    fi
+    return $stat
+}
+
+# Checks if IP Address is active
+function ip_Active {
+	fping -c1 -t300 $ip 2>/dev/null 1>/dev/null
+	if [ "$?" = 0 ]; then
+		is_host_running="True"
+	else
+		is_host_running="False"
+	fi
+	export is_host_running
+}
+
+# Host name to IP conversion
+function nslookup {
+	if [[ ! -z $Hostname ]]; then
+		ip=$(sudo nslookup $Hostname | grep "Address" | awk '{print $2}' | sed -n 2p)
+		export ip
+	fi
+}
+
+# Syntax
+function syntax {
+	echo -e
+	echo -e "${Red}[XXX] // RUBICON By: ${On_IRed}FalseBeliefs${reset}${Red} \\\\\ [XXX]"
+	echo -e "${Yellow}[XXX] Syntax: sudo rubicon {args}${reset}"
+	echo -e "	${BBlue}[X] ${UCyan}-h${reset}${BBlue} --> Help"
+	echo -e "	${BBlue}[X] ${UCyan}--help${reset}${BBlue} --> Help"
+	echo -e "	${BBlue}[X] ${UCyan}-I${reset}${BBlue} --> Specify IP_Address"
+	echo -e "	${BBlue}[X] ${UCyan}-H${reset}${BBlue} --> Specify Hostname (i.e. github.com)"
+	echo -e "${Yellow}[XXX] Gobuster Specifications:${reset}"
+	echo -e "	${BBlue}[X] ${UCyan}-l${reset}${BBlue} --> Large File"
+	echo -e "	${BBlue}[X] ${UCyan}-m${reset}${BBlue} --> Medium File"
+	echo -e "	${BBlue}[X] ${UCyan}-s${reset}${BBlue} --> Small File"
+	echo -e "${Yellow}[XXX] Hydra Specifications:${reset}"
+	echo -e "	${BBlue}[X] ${UCyan}-u${reset}${BBlue} --> Username"
+	echo -e "	${BBlue}[X] ${UCyan}-a${reset}${BBlue} --> Password"
+	echo -e "	${BBlue}[X] ${UCyan}-U${reset}${BBlue} --> Username List"
+	echo -e "	${BBlue}[X] ${UCyan}-A${reset}${BBlue} --> Password List"
+	echo -e "	${BBlue}[X] ${UCyan}-C${reset}${BBlue} --> Username:Password (Colon Seperated Format File)"
+	echo -e "	${BBlue}[X] ${UCyan}-j${reset}${BBlue} --> Use Defualt (seclists) | Defualt Option"
+	echo -e "	${BBlue}[X] ${UCyan}-b${reset}${BBlue} --> Disable Hydra Attack"
+	echo -e "${Yellow}[XXX] wpscan Specifications:${reset}"
+	echo -e "	${BBlue}[X] ${UCyan}-v${reset}${BBlue} --> Verbose Only"
+	echo -e "	${BBlue}[X] ${UCyan}-o${reset}${BBlue} --> Output Only"
+	echo -e "	${BBlue}[X] ${UCyan}-z${reset}${BBlue} --> Output & Verbose | Defualt Option"
+	echo -e "	${BBlue}[X] ${UCyan}-q${reset}${BBlue} --> Disable wpscan"
+	echo -e "${Yellow}[XXX] Network Discovery Specifications:${reset}"
+	echo -e "	${BBlue}[X] ${UCyan}-R${reset}${BBlue} --> IP Range (192.168.0.0/24)"
+	echo -e "	${BBlue}[X] ${UCyan}-N${reset}${BBlue} --> Interface (wlan0, wlan1, eth0...)"
+	echo -e "${UYellow}[O] OUTPUT FILE:${reset}"
+	echo -e "	${Green}[+] - NMAP: $DIRECTORY/nmap_[ip].nmap${reset}"
+	echo -e "	${Green}[+] - NIKTO: $DIRECTORY/nikto_[ip].txt${reset}"
+	echo -e "	${Green}[+] - Gobuster: $DIRECTORY/gobuster_[ip].txt${reset}"
+	echo -e "	${Green}[+] - Wpscan: $DIRECTORY/wpscan_[ip].txt${reset} "
+	echo -e "	${Green}[+] - Network Discovery: $DIRECTORY/netdiscover_[ip].txt${reset} "
+	echo -e "	${Red}[!] - Defualt text file for Hydra is secList at /usr/share/seclists/Passwords/xato_10_million_merged.txt"
+	echo -e "	${Cyan}[+] Thank You For Using RUBICON${reset}"
+}
+
+# Main Function
+function start {
+	if [[ -z $help ]]; then
+		directory_test $@
+		if [[ ! -z $Hostname ]]; then
+			nslookup $@
+			ip_Active $@
+			if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
+				echo -e "${Green}[Validation] Validating $ip${reset}"
+				sleep $r
+				echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
+				sleep $r
+			else
+				echo -e "${Green}[Validation] Validating $ip${reset}"
+				sleep $r
+				echo -e "${Red}[Invalid] $ip is Invalid or Inactive ns${reset}"
+				echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
+				exit 1
+			fi
+		elif [[ -z $Hostname ]]; then
+			if [[ ! -z $range ]]; then
+				echo -e "${Cyan}[Initialized] Network Discovery Scan (Range)${reset}"
+				sudo nmap -o "${DIRECTORY}/netdiscover_range.txt" $range
+				echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
+				exit 1
+			elif [[ ! -z $interface ]]; then
+				echo -e "${Cyan}[Initialized] Network Discovery Scan (Interface)${reset}"
+				sudo arp -i $interface
+				echo $(sudo arp -i $interface) >> "${DIRECTORY}/netdiscover_$interface.txt"
+				echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
+				exit 1
+			fi
+			ip_Active $@
+			if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
+				echo -e "${Green}[Validation] Validating $ip${reset}"
+				sleep $r
+				echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
+				sleep $r
+			else
+				echo -e "${Green}[Validation] Validating $ip${reset}"
+				sleep $r
+				echo -e "${Red}[Invalid] $ip is Invalid or Inactive ip${reset}"
+				echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
+				exit 1
+			fi
+		fi
+		NMAP $@
+		validate_ports $@
+		if [[ ! -z $http ]]; then
+			GOBUSTER $@
+			NIKTO $@
+			if [[ $wp_diasbled == "True" ]]; then
+				echo -e "${Red}[WORDPRESS] WPSCAN has been disabled${reset}"
+				sleep $r
+			else
+				if grep --quiet "$ip/wordpress" "$DIRECTORY"/gobuster_"$ip".txt; then
+					echo -e "${Cyan}[Initialized] Wordpress scan is starting${reset}"
+					sleep $r
+					WORDPRESS $@
+					echo -e "${Cyan}[Finished] Wordpress scan is complete${reset}"
+				else
+					echo -e "${Red}[WORDPRESS] WordPress is not active on the host ${ip}. Not scanning${reset}"
+				fi
+			fi
+		else
+			echo -e "${Blue}[Skipping] Port 80 closed, unable to run GOBUSTER${reset}"
+			echo -e "${Blue}[Skipping] Port 80 closed, unable to run NIKTO${reset}"
+			echo -e "${Blue}[Skipping] Port 80 closed, unable to run WPSCAN${reset}"
+		fi
+		if [[ ! -z $ssh ]]; then
+			if [[ ! -z $hydra_disabled ]]; then
+				echo -e "${Yellow}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
+			else
+				HYDRA $@
+			fi
+		else
+			echo -e "${Blue}[Skipping] Port 22 closed, unable to run HYDRA ssh brutefore attack${reset}"
+		fi
+		echo -e "${Green}[Finished] All scans complete thank you for using Pentesting Essentials By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
+		exit 1
+	fi
+
+}
+
+if [[ -z $1 ]]; then
+	syntax
+	help="b"
+fi
+
+if [ "$EUID" -ne 0 ]; then 
+	echo -e "${Red}[NOTATION] Please run with sudo or as root"
+ 	exit 1
+fi
+
+
+while getopts "h-helpI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
+	case "$args" in
+		-help) help="b"; syntax;;
+		h) help="b"; syntax;;
+		I) ip=${OPTARG};;
+		H) hostname=${OPTARG};;
+		u) u=${OPTARG};;
+		a) a=${OPTARG};;
+		U) U=${OPTARG};;
+		A) A=${OPTARG};;
+		C) combined_file=${OPTARG}; combined="True";;
+		j) hydra_defualt="True";;
+		b) hydra_disabled="True";;
+		v) wp_output="verbose";;
+		o) wp_output="output";;
+		z) wp_output="both";;
+		q) wp_diasbled="True";;
+		l) file_size="large"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-1.0.txt";;
+		m) file_size="medium"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt";;
+		s) file_size="small"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt";;
+		R) range=${OPTARG};;
+		N) interface=${OPTARG};;
+	esac
+done
+start
