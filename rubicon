@@ -276,6 +276,7 @@ self_update() {
         git checkout main --quiet
         git pull --force --quiet
         #echo "Running the new version..."
+        sudo chmod +x $SCRIPTFILE
         cd - > /dev/null                        # return to original working dir
         #exec "$SCRIPTNAME" "${ARGS[@]}"
 
