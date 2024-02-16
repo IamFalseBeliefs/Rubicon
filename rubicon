@@ -380,7 +380,7 @@ fi
 
 
 
-while getopts "-updateh-helpI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
+while getopts "h-help-updateI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
 	case "$args" in
 		-help) help="b"; syntax;;
 		h) help="b"; syntax;;
