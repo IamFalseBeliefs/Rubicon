@@ -287,85 +287,86 @@ self_update() {
 function start {
 	if [[ $update == "True" ]]; then
 		self_update
-	fi
-	if [[ -z $help ]]; then
-		directory_test $@
-		if [[ ! -z $Hostname ]]; then
-			nslookup $@
-			ip_Active $@
-			if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
-				echo -e "${Green}[Validation] Validating $ip${reset}"
-				sleep $r
-				echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
-				sleep $r
-			else
-				echo -e "${Green}[Validation] Validating $ip${reset}"
-				sleep $r
-				echo -e "${Red}[Invalid] $ip is Invalid or Inactive ns${reset}"
-				echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
-				exit 1
-			fi
-		elif [[ -z $Hostname ]]; then
-			if [[ ! -z $range ]]; then
-				echo -e "${Cyan}[Initialized] Network Discovery Scan (Range)${reset}"
-				sudo nmap -o "${DIRECTORY}/netdiscover_range.txt" $range
-				echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
-				exit 1
-			elif [[ ! -z $interface ]]; then
-				echo -e "${Cyan}[Initialized] Network Discovery Scan (Interface)${reset}"
-				sudo arp -i $interface
-				echo $(sudo arp -i $interface) >> "${DIRECTORY}/netdiscover_$interface.txt"
-				echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
-				exit 1
-			fi
-			ip_Active $@
-			if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
-				echo -e "${Green}[Validation] Validating $ip${reset}"
-				sleep $r
-				echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
-				sleep $r
-			else
-				echo -e "${Green}[Validation] Validating $ip${reset}"
-				sleep $r
-				echo -e "${Red}[Invalid] $ip is Invalid or Inactive ip${reset}"
-				echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
-				exit 1
-			fi
-		fi
-		NMAP $@
-		validate_ports $@
-		if [[ ! -z $http ]]; then
-			GOBUSTER $@
-			NIKTO $@
-			if [[ $wp_diasbled == "True" ]]; then
-				echo -e "${Red}[WORDPRESS] WPSCAN has been disabled${reset}"
-				sleep $r
-			else
-				if grep --quiet "$ip/wordpress" "$DIRECTORY"/gobuster_"$ip".txt; then
-					echo -e "${Cyan}[Initialized] Wordpress scan is starting${reset}"
+	else
+		if [[ -z $help ]]; then
+			directory_test $@
+			if [[ ! -z $Hostname ]]; then
+				nslookup $@
+				ip_Active $@
+				if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
+					echo -e "${Green}[Validation] Validating $ip${reset}"
 					sleep $r
-					WORDPRESS $@
-					echo -e "${Cyan}[Finished] Wordpress scan is complete${reset}"
+					echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
+					sleep $r
 				else
-					echo -e "${Red}[WORDPRESS] WordPress is not active on the host ${ip}. Not scanning${reset}"
+					echo -e "${Green}[Validation] Validating $ip${reset}"
+					sleep $r
+					echo -e "${Red}[Invalid] $ip is Invalid or Inactive ns${reset}"
+					echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
+					exit 1
+				fi
+			elif [[ -z $Hostname ]]; then
+				if [[ ! -z $range ]]; then
+					echo -e "${Cyan}[Initialized] Network Discovery Scan (Range)${reset}"
+					sudo nmap -o "${DIRECTORY}/netdiscover_range.txt" $range
+					echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
+					exit 1
+				elif [[ ! -z $interface ]]; then
+					echo -e "${Cyan}[Initialized] Network Discovery Scan (Interface)${reset}"
+					sudo arp -i $interface
+					echo $(sudo arp -i $interface) >> "${DIRECTORY}/netdiscover_$interface.txt"
+					echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
+					exit 1
+				fi
+				ip_Active $@
+				if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
+					echo -e "${Green}[Validation] Validating $ip${reset}"
+					sleep $r
+					echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
+					sleep $r
+				else
+					echo -e "${Green}[Validation] Validating $ip${reset}"
+					sleep $r
+					echo -e "${Red}[Invalid] $ip is Invalid or Inactive ip${reset}"
+					echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
+					exit 1
 				fi
 			fi
-		else
-			echo -e "${Blue}[Skipping] Port 80 closed, unable to run GOBUSTER${reset}"
-			echo -e "${Blue}[Skipping] Port 80 closed, unable to run NIKTO${reset}"
-			echo -e "${Blue}[Skipping] Port 80 closed, unable to run WPSCAN${reset}"
-		fi
-		if [[ ! -z $ssh ]]; then
-			if [[ ! -z $hydra_disabled ]]; then
-				echo -e "${Yellow}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
+			NMAP $@
+			validate_ports $@
+			if [[ ! -z $http ]]; then
+				GOBUSTER $@
+				NIKTO $@
+				if [[ $wp_diasbled == "True" ]]; then
+					echo -e "${Red}[WORDPRESS] WPSCAN has been disabled${reset}"
+					sleep $r
+				else
+					if grep --quiet "$ip/wordpress" "$DIRECTORY"/gobuster_"$ip".txt; then
+						echo -e "${Cyan}[Initialized] Wordpress scan is starting${reset}"
+						sleep $r
+						WORDPRESS $@
+						echo -e "${Cyan}[Finished] Wordpress scan is complete${reset}"
+					else
+						echo -e "${Red}[WORDPRESS] WordPress is not active on the host ${ip}. Not scanning${reset}"
+					fi
+				fi
 			else
-				HYDRA $@
+				echo -e "${Blue}[Skipping] Port 80 closed, unable to run GOBUSTER${reset}"
+				echo -e "${Blue}[Skipping] Port 80 closed, unable to run NIKTO${reset}"
+				echo -e "${Blue}[Skipping] Port 80 closed, unable to run WPSCAN${reset}"
 			fi
-		else
-			echo -e "${Blue}[Skipping] Port 22 closed, unable to run HYDRA ssh brutefore attack${reset}"
+			if [[ ! -z $ssh ]]; then
+				if [[ ! -z $hydra_disabled ]]; then
+					echo -e "${Yellow}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
+				else
+					HYDRA $@
+				fi
+			else
+				echo -e "${Blue}[Skipping] Port 22 closed, unable to run HYDRA ssh brutefore attack${reset}"
+			fi
+			echo -e "${Green}[Finished] All scans complete thank you for using Pentesting Essentials By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
+			exit 1
 		fi
-		echo -e "${Green}[Finished] All scans complete thank you for using Pentesting Essentials By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
-		exit 1
 	fi
 
 }
