@@ -285,7 +285,7 @@ self_update() {
 
 # Main Function
 function start {
-	if [[ !z $update ]]; then
+	if [[ ! -z $update ]]; then
 		self_update
 	else
 		if [[ -z $help ]]; then
