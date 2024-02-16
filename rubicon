@@ -221,6 +221,7 @@ function syntax {
 	echo -e "	${BBlue}[X] ${UCyan}--help${reset}${BBlue} --> Help"
 	echo -e "	${BBlue}[X] ${UCyan}-I${reset}${BBlue} --> Specify IP_Address"
 	echo -e "	${BBlue}[X] ${UCyan}-H${reset}${BBlue} --> Specify Hostname (i.e. github.com)"
+	echo -e "	${BBlue}[X] ${UCyan}-Z${reset}${BBlue} --> Update"
 	echo -e "${Yellow}[XXX] Gobuster Specifications:${reset}"
 	echo -e "	${BBlue}[X] ${UCyan}-l${reset}${BBlue} --> Large File"
 	echo -e "	${BBlue}[X] ${UCyan}-m${reset}${BBlue} --> Medium File"
