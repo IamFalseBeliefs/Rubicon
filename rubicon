@@ -267,11 +267,11 @@ self_update() {
 
     timeout 1s git diff --quiet --exit-code "origin/main" "$SCRIPTFILE"
     [ $? -eq 1 ] && {
-        echo -e "${Blue}[Update] Found a new version. Updating...${reset}"
         if [ -n "$(git status --porcelain)" ];  # opposite is -z
         then 
             git stash push -m 'local changes stashed before self update' --quiet
         fi
+	echo -e "${Blue}[Update] Found a new version. Updating...${reset}"
         git pull --force --quiet
         git checkout main --quiet
         git pull --force --quiet
@@ -283,6 +283,8 @@ self_update() {
         # Now exit this old instance
         exit 1
 	}
+	echo -e "${Green}[Update] Already at the latest version. Exiting...${reset}"
+	exit 1
 }
 
 # Main Function
