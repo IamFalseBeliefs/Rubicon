@@ -153,8 +153,12 @@ function validate_ports {
 # NMAP Function
 function NMAP {
 	echo -e "${Cyan}[Initialized] NMAP scan is starting${reset}"
+	if [[ ! -z $deep ]]; then
+		sudo nmap -sV -O -T5 -p- -A -o "$DIRECTORY/nmap_deep_$ip.txt" $ip
+	elif [[ ! -z $lose ]] || [[ -z $lose ]]; then
+		sudo nmap -sV -O -T5 -o "$DIRECTORY/nmap_laxed_$ip.txt" $ip
+	fi
 	sleep 1
-	sudo nmap -sV -O -T5 -p- -A -o "$DIRECTORY/nmap_$ip.txt" $ip
 	echo -e "${Cyan}[Finished] NMAP scan complete${reset}"
 }
 
@@ -222,6 +226,9 @@ function syntax {
 	echo -e "	${BBlue}[X] ${UCyan}-I${reset}${BBlue} --> Specify IP_Address"
 	echo -e "	${BBlue}[X] ${UCyan}-H${reset}${BBlue} --> Specify Hostname (i.e. github.com)"
 	echo -e "	${BBlue}[X] ${UCyan}-Z${reset}${BBlue} --> Update"
+	echo -e "${Yellow}[XXX] NMAP Specifications:${reset}"
+	echo -e "	${BBlue}[X] ${UCyan}-P${reset}${BBlue} --> Deep Scan"
+	echo -e "	${BBlue}[X] ${UCyan}-p${reset}${BBlue} --> Laxed Scan | Defualt Option"
 	echo -e "${Yellow}[XXX] Gobuster Specifications:${reset}"
 	echo -e "	${BBlue}[X] ${UCyan}-l${reset}${BBlue} --> Large File"
 	echo -e "	${BBlue}[X] ${UCyan}-m${reset}${BBlue} --> Medium File"
@@ -247,24 +254,17 @@ function syntax {
 	echo -e "	${Green}[+] - NIKTO: $DIRECTORY/nikto_[ip].txt${reset}"
 	echo -e "	${Green}[+] - Gobuster: $DIRECTORY/gobuster_[ip].txt${reset}"
 	echo -e "	${Green}[+] - Wpscan: $DIRECTORY/wpscan_[ip].txt${reset} "
-	echo -e "	${Green}[+] - Network Discovery: $DIRECTORY/netdiscover_[ip].txt${reset} "
+	echo -e "	${Green}[+] - Network Discovery: $DIRECTORY/netdiscover_[interface/range]_[ip].txt${reset}"
 	echo -e "	${Red}[!] - Defualt text file for Hydra is secList at /usr/share/seclists/Passwords/xato_10_million_merged.txt"
 	echo -e "	${Cyan}[+] Thank You For Using RUBICON${reset}"
 }
 
+# Update Function
 self_update() {
     [ "$UPDATE_GUARD" ] && return
     export UPDATE_GUARD=YES
-    
     cd "$SCRIPTPATH"
     timeout 1s git fetch --quiet
-
-                                               # in the next line
-                                               # 1. added double-quotes (see below)
-                                               # 2. removed grep expression so
-                                               # git-diff will check only script
-                                               # file
-
     timeout 1s git diff --quiet --exit-code "origin/main" "$SCRIPTFILE"
     [ $? -eq 1 ] && {
         if [ -n "$(git status --porcelain)" ];  # opposite is -z
@@ -279,7 +279,6 @@ self_update() {
         sudo chmod +x $SCRIPTFILE
         cd - > /dev/null                        # return to original working dir
         #exec "$SCRIPTNAME" "${ARGS[@]}"
-
         # Now exit this old instance
         exit 1
 	}
@@ -368,7 +367,7 @@ function start {
 			else
 				echo -e "${Blue}[Skipping] Port 22 closed, unable to run HYDRA ssh brutefore attack${reset}"
 			fi
-			echo -e "${Green}[Finished] All scans complete thank you for using Pentesting Essentials By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
+			echo -e "${Green}[Finished] All scans complete thank you for using rubicon By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
 			exit 1
 		fi
 	fi
@@ -388,7 +387,7 @@ fi
 
 
 
-while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
+while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlmsPp" args; do
 	case "$args" in
 		-help) help="b"; syntax;;
 		h) help="b"; syntax;;
@@ -411,6 +410,8 @@ while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
 		R) range=${OPTARG};;
 		N) interface=${OPTARG};;
 		Z) update=True;;
+		P) deep=True;;
+		p) lose=True;;
 	esac
 done
 start
