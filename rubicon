@@ -4,6 +4,12 @@
 USER=$(whoami)
 DIRECTORY="$(pwd)/rubicon"
 r=$(awk 'BEGIN { srand(); print int(rand() * 3) + 1 }')
+SCRIPT="$(readlink -f "$0")"
+SCRIPTFILE="$(basename "$SCRIPT")"             # get name of the file (not full path)
+SCRIPTPATH="$(dirname "$SCRIPT")"
+SCRIPTNAME="$0"
+ARGS=( "$@" )                                  # fixed to make array of args (see below)
+BRANCH="master"
 # Colors
 # Reset
 reset='\033[0m'       # Text Reset
@@ -329,18 +335,51 @@ function start {
 
 }
 
-if [[ -z $1 ]]; then
-	syntax
-	help="b"
-fi
+self_update() {
+    [ "$UPDATE_GUARD" ] && return
+    export UPDATE_GUARD=YES
+    
+    cd "$SCRIPTPATH"
+    timeout 1s git fetch --quiet
+
+                                               # in the next line
+                                               # 1. added double-quotes (see below)
+                                               # 2. removed grep expression so
+                                               # git-diff will check only script
+                                               # file
+
+    timeout 1s git diff --quiet --exit-code "origin/main" "$SCRIPTFILE"
+    [ $? -eq 1 ] && {
+        echo -e "${Blue}[Update]Found a new version of me, updating myself...${reset}"
+        if [ -n "$(git status --porcelain)" ];  # opposite is -z
+        then 
+            git stash push -m 'local changes stashed before self update' --quiet
+        fi
+        git pull --force --quiet
+        git checkout main --quiet
+        git pull --force --quiet
+        #echo "Running the new version..."
+        cd - > /dev/null                        # return to original working dir
+        #exec "$SCRIPTNAME" "${ARGS[@]}"
+
+        # Now exit this old instance
+        exit 1
+}
+
 
 if [ "$EUID" -ne 0 ]; then 
 	echo -e "${Red}[NOTATION] Please run with sudo or as root"
  	exit 1
 fi
 
+if [[ -z $1 ]]; then
+	syntax
+	help="b"
+fi
 
-while getopts "h-helpI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
+
+
+while getopts "-updateh-helpI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
 	case "$args" in
 		-help) help="b"; syntax;;
 		h) help="b"; syntax;;
@@ -362,6 +401,7 @@ while getopts "h-helpI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
 		s) file_size="small"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt";;
 		R) range=${OPTARG};;
 		N) interface=${OPTARG};;
+		-update) self_update;;
 	esac
 done
 start
