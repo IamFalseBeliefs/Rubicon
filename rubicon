@@ -406,7 +406,7 @@ while getopts "h-help-updateI:u:a:R:N:U:A:C:H:jbvozqlms" args; do
 		s) file_size="small"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt";;
 		R) range=${OPTARG};;
 		N) interface=${OPTARG};;
-		-update) update=True ; echo $update;;
+		Z) update=True ; echo $update;;
 	esac
 done
 start
