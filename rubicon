@@ -154,9 +154,9 @@ function validate_ports {
 function NMAP {
 	echo -e "${Cyan}[Initialized] NMAP scan is starting${reset}"
 	if [[ ! -z $deep ]]; then
-		sudo nmap -sV -O -T5 -p- -A -o "$DIRECTORY/nmap_deep_$ip.txt" $ip
+		sudo nmap -sV -T4 -A -p- -Pn -O -o "$DIRECTORY/nmap_deep_$ip.txt" $ip
 	elif [[ ! -z $lose ]] || [[ -z $lose ]]; then
-		sudo nmap -sV -O -T5 -o "$DIRECTORY/nmap_laxed_$ip.txt" $ip
+		sudo nmap -sV -O -T4 -Pn -o "$DIRECTORY/nmap_laxed_$ip.txt" $ip
 	fi
 	sleep 1
 	echo -e "${Cyan}[Finished] NMAP scan complete${reset}"
@@ -199,11 +199,15 @@ function valid_ip_format {
 
 # Checks if IP Address is active
 function ip_Active {
-	fping -c1 -t300 $ip 2>/dev/null 1>/dev/null
-	if [ "$?" = 0 ]; then
+	if [[ $skip_validation == "True" ]]; then
 		is_host_running="True"
 	else
-		is_host_running="False"
+		fping -c1 -t300 $ip 2>/dev/null 1>/dev/null
+		if [ "$?" = 0 ]; then
+			is_host_running="True"
+		else
+			is_host_running="False"
+		fi
 	fi
 	export is_host_running
 }
@@ -224,6 +228,7 @@ function syntax {
 	echo -e "	${BBlue}[X] ${UCyan}-h${reset}${BBlue} --> Help"
 	echo -e "	${BBlue}[X] ${UCyan}--help${reset}${BBlue} --> Help"
 	echo -e "	${BBlue}[X] ${UCyan}-I${reset}${BBlue} --> Specify IP_Address"
+	echo -e "	${BBlue}[X] ${UCyan}-T${reset}${BBlue} --> Skip Ping Validation for unpingable IP's"
 	echo -e "	${BBlue}[X] ${UCyan}-H${reset}${BBlue} --> Specify Hostname (i.e. github.com)"
 	echo -e "	${BBlue}[X] ${UCyan}-Z${reset}${BBlue} --> Update"
 	echo -e "${Yellow}[XXX] NMAP Specifications:${reset}"
@@ -387,7 +392,7 @@ fi
 
 
 
-while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlmsPp" args; do
+while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlmsPpT" args; do
 	case "$args" in
 		-help) help="b"; syntax;;
 		h) help="b"; syntax;;
@@ -412,6 +417,7 @@ while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlmsPp" args; do
 		Z) update=True;;
 		P) deep=True;;
 		p) lose=True;;
+		T) skip_validation=True;;
 	esac
 done
 start
