@@ -259,6 +259,14 @@ function nslookup {
 # Syntax
 function syntax {
 	echo -e
+	echo -e "${Red}░▒▓███████▓▒░░▒▓█▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░░▒▓██████▓▒░ ░▒▓██████▓▒░░▒▓███████▓▒░   "
+	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo -e "░▒▓███████▓▒░░▒▓█▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo -e "░▒▓█▓▒░░▒▓█▓▒░░▒▓██████▓▒░░▒▓███████▓▒░░▒▓█▓▒░░▒▓██████▓▒░ ░▒▓██████▓▒░░▒▓█▓▒░░▒▓█▓▒░  ${reset}"                                                                                
+	echo -e
 	echo -e "${Red}[XXX] // RUBICON By: ${On_IRed}FalseBeliefs${reset}${Red} \\\\\ [XXX]"
 	echo -e "${Yellow}[XXX] Syntax: sudo rubicon {args}${reset}"
 	echo -e "	${BBlue}[X] ${Cyan}-h or --help${reset}${BBlue} --> Help"
@@ -410,14 +418,14 @@ function start {
 					if [[ $dig_enabled == "True" ]] || [[ -z $dig_enabled ]]; then
 						DIG
 					elif [[ $dig_enabled == "False" ]]; then
-						echo -e "${RED}[DIG] DIG DNS Scan has been disabled${reset}"
+						echo -e "${Red}[DIG] DIG DNS Scan has been disabled${reset}"
 					fi
 				else
 					echo -e "${Blue}[Skipping] Port 53 closed, unable to run DIG DNS Scan${reset}"
 				fi
 				if [[ ! -z $ssh ]]; then
 					if [[ ! -z $hydra_disabled ]]; then
-						echo -e "${RED}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
+						echo -e "${Red}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
 					else
 						HYDRA $@
 					fi
