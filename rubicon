@@ -27,18 +27,34 @@ UYellow='\033[4;33m'      # Yellow
 UCyan='\033[4;36m'        # Cyan
 On_IRed='\033[0;101m'     # Red
 
+# DNS (DIG)
+function DIG {
+	echo -e "${Cyan}[Initialized] Starting Dig scan${reset}"
+	sudo dig axfr @$ip
+	sudo dig axfr @$ip >> "$DIRECTORY/dig_dns_scan_$ip.txt"
+	echo -e "${Cyan}[Finished] Complete Dig scan${reset}"
+}
+
 # Wordpess Scan
 function WORDPRESS {
-	if [[ $wp_output == "verbose" ]]; then
-		echo -e "${Cyan}[WORDPRESS] Verbose only selected${reset}"
-		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu
-	elif [[ $wp_output == "output" ]]; then
-		echo -e "${Cyan}[WORDPRESS] Output only selected${reset}"
-		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu -o "$DIRECTORY/wpscan_$ip.txt"
-	elif [[ $wp_output == "both" ]] || [[ -z $wp_output ]]; then
-		echo -e "${Cyan}[WORDPRESS] Verbose and Output selected${reset}"
-		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu -o "$DIRECTORY/wpscan_$ip.txt"
-		sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu
+
+	if [[ $stand_alone_wpscan == "True" ]]; then
+		echo -e "${Cyan}[Initialized] Wordpress Scan${reset}"
+		sudo wpscan --url $wp_host --wp-content-dir -at -eu --disable-tls-checks
+		sudo wpscan --url $wp_host --wp-content-dir -at -eu --disable-tls-checks -o "$DIRECTORY/wpscan_Stand_Alone_Scan.txt"
+		echo -e "${Yellow}[Finished] Wordpress scan is complete${reset}"
+	else
+		if [[ $wp_output == "verbose" ]]; then
+			echo -e "${Cyan}[WORDPRESS] Verbose only selected${reset}"
+			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks
+		elif [[ $wp_output == "output" ]]; then
+			echo -e "${Cyan}[WORDPRESS] Output only selected${reset}"
+			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks -o "$DIRECTORY/wpscan_$ip.txt"
+		elif [[ $wp_output == "both" ]] || [[ -z $wp_output ]]; then
+			echo -e "${Cyan}[WORDPRESS] Verbose and Output selected${reset}"
+			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks -o "$DIRECTORY/wpscan_$ip.txt"
+			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks
+		fi
 	fi
 }
 
@@ -96,10 +112,18 @@ function HYDRA {
 
 # NIKTO function
 function NIKTO {
+
+	if [[ $stand_alone_nikto == "True" ]]; then
+		echo -e "${Yellow}[Initialized] NIKTO scan is starting${reset}"
+		sleep $r
+		sudo nikto --host $nikto_host -C all -output "$DIRECTORY/nikto_Stand_Alone_Scan.txt"
+		echo -e "${Yellow}[Finished] NIKTO scan is complete${Yellow}"
+		exit 1
+	fi
 	echo -e "${Yellow}[Initialized] NIKTO scan is starting${reset}"
 	sleep $r
 	sudo nikto --host $ip -C all -output "$DIRECTORY/nikto_$ip.txt"
-	echo -e "${Yellow}[Finished] NIKTO scan is complete${Yellow}"
+	echo -e "${Yellow}[Finished] NIKTO scan is complete${reset}"
 }
 
 # Gobuster function
@@ -125,14 +149,14 @@ function GOBUSTER {
 function validate_ports {
 
 	if nc -z $ip 80 ; then
-		echo -e "${Green}[Port Validation] Testing if port 80 is open${reset}"
+		echo -e "${Green}[Port Validation] Testing if port 80 (HTTP) is open${reset}"
 		sleep $r
-		echo -e "${Green}[Port Validation] Port 80 is open${reset}"
+		echo -e "${Green}[Port Validation] Port 80 (HTTP) is open${reset}"
 		http="open"
 	else
-		echo -e "${Green}[Port Validation] Testing if port 80 is open${reset}"
+		echo -e "${Green}[Port Validation] Testing if port 80 (HTTP) is open${reset}"
 		sleep $r
-		echo -e "${Red}[Port Validation] Port 80 is closed${reset}"
+		echo -e "${Red}[Port Validation] Port 80 (HTTP) is closed${reset}"
 		
 	fi
 	if nc -z $ip 22 ; then
@@ -146,7 +170,19 @@ function validate_ports {
 		echo -e "${Red}[Port Validation] Port 22 is closed${reset}"
 		
 	fi
+	if nc -z $ip 53 ; then
+		echo -e "${Green}[Port Validation] Testing if port 53 (DNS) is open${reset}"
+		sleep $r
+		echo -e "${Green}[Port Validation] Port 53 (DNS) is open${reset}"
+		dns="open"
+	else
+		echo -e "${Green}[Port Validation] Testing if port 53 (DNS) is open${reset}"
+		sleep $r
+		echo -e "${Red}[Port Validation] Port 53 (DNS) is closed${reset}"
+	fi
 	export http
+	export https
+	export dns
 	export ssh
 }
 
@@ -225,41 +261,43 @@ function syntax {
 	echo -e
 	echo -e "${Red}[XXX] // RUBICON By: ${On_IRed}FalseBeliefs${reset}${Red} \\\\\ [XXX]"
 	echo -e "${Yellow}[XXX] Syntax: sudo rubicon {args}${reset}"
-	echo -e "	${BBlue}[X] ${UCyan}-h${reset}${BBlue} --> Help"
-	echo -e "	${BBlue}[X] ${UCyan}--help${reset}${BBlue} --> Help"
-	echo -e "	${BBlue}[X] ${UCyan}-I${reset}${BBlue} --> Specify IP_Address"
-	echo -e "	${BBlue}[X] ${UCyan}-T${reset}${BBlue} --> Skip Ping Validation for unpingable IP's"
-	echo -e "	${BBlue}[X] ${UCyan}-H${reset}${BBlue} --> Specify Hostname (i.e. github.com)"
-	echo -e "	${BBlue}[X] ${UCyan}-Z${reset}${BBlue} --> Update"
+	echo -e "	${BBlue}[X] ${Cyan}-h or --help${reset}${BBlue} --> Help"
+	echo -e "	${BBlue}[X] ${Cyan}-I${reset}${BBlue} --> Specify IP_Address"
+	echo -e "	${BBlue}[X] ${Cyan}-T${reset}${BBlue} --> Skip Ping Validation for unpingable IP's"
+	echo -e "	${BBlue}[X] ${Cyan}-H${reset}${BBlue} --> Specify Hostname (i.e. github.com)"
+	echo -e "	${BBlue}[X] ${Cyan}-Z${reset}${BBlue} --> Update"
 	echo -e "${Yellow}[XXX] NMAP Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${UCyan}-P${reset}${BBlue} --> Deep Scan"
-	echo -e "	${BBlue}[X] ${UCyan}-p${reset}${BBlue} --> Laxed Scan | Defualt Option"
+	echo -e "	${BBlue}[X] ${Cyan}-P${reset}${BBlue} --> Deep Scan"
+	echo -e "	${BBlue}[X] ${Cyan}-p${reset}${BBlue} --> Laxed Scan | Defualt Option"
 	echo -e "${Yellow}[XXX] Gobuster Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${UCyan}-l${reset}${BBlue} --> Large File"
-	echo -e "	${BBlue}[X] ${UCyan}-m${reset}${BBlue} --> Medium File"
-	echo -e "	${BBlue}[X] ${UCyan}-s${reset}${BBlue} --> Small File"
-	echo -e "${Yellow}[XXX] Hydra Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${UCyan}-u${reset}${BBlue} --> Username"
-	echo -e "	${BBlue}[X] ${UCyan}-a${reset}${BBlue} --> Password"
-	echo -e "	${BBlue}[X] ${UCyan}-U${reset}${BBlue} --> Username List"
-	echo -e "	${BBlue}[X] ${UCyan}-A${reset}${BBlue} --> Password List"
-	echo -e "	${BBlue}[X] ${UCyan}-C${reset}${BBlue} --> Username:Password (Colon Seperated Format File)"
-	echo -e "	${BBlue}[X] ${UCyan}-j${reset}${BBlue} --> Use Defualt (seclists) | Defualt Option"
-	echo -e "	${BBlue}[X] ${UCyan}-b${reset}${BBlue} --> Disable Hydra Attack"
+	echo -e "	${BBlue}[X] ${Cyan}-l${reset}${BBlue} --> Large File"
+	echo -e "	${BBlue}[X] ${Cyan}-m${reset}${BBlue} --> Medium File"
+	echo -e "	${BBlue}[X] ${Cyan}-s${reset}${BBlue} --> Small File | Defualt Option"
 	echo -e "${Yellow}[XXX] wpscan Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${UCyan}-v${reset}${BBlue} --> Verbose Only"
-	echo -e "	${BBlue}[X] ${UCyan}-o${reset}${BBlue} --> Output Only"
-	echo -e "	${BBlue}[X] ${UCyan}-z${reset}${BBlue} --> Output & Verbose | Defualt Option"
-	echo -e "	${BBlue}[X] ${UCyan}-q${reset}${BBlue} --> Disable wpscan"
+	echo -e "	${BBlue}[X] ${Cyan}-W${reset}${BBlue} --> Stand Alone Scan (Usage: sudo rubicon -W URL)"
+	echo -e "	${BBlue}[X] ${Cyan}-v${reset}${BBlue} --> Verbose Only"
+	echo -e "	${BBlue}[X] ${Cyan}-o${reset}${BBlue} --> Output Only"
+	echo -e "	${BBlue}[X] ${Cyan}-z${reset}${BBlue} --> Output & Verbose | Defualt Option"
+	echo -e "	${BBlue}[X] ${Cyan}-q${reset}${BBlue} --> Disable wpscan"
+	echo -e "${Yellow}[XXX] NIKTO:${reset}"
+	echo -e "	${BBlue}[X] ${Cyan}-n${reset}${BBlue} --> Stand Alone Nikto Scan (Usage: sudo rubicon -n URL)"
+	echo -e "${Yellow}[XXX] DIG DNS Scan:${reset}"
+	echo -e "	${BBlue}[X] ${Cyan}-D${reset}${BBlue} --> Enable | Defualt Option"
+	echo -e "	${BBlue}[X] ${Cyan}-d${reset}${BBlue} --> Disable"
+	echo -e "${Yellow}[XXX] Hydra Specifications:${reset}"
+	echo -e "	${BBlue}[X] ${Cyan}-u${reset}${BBlue} --> Username"
+	echo -e "	${BBlue}[X] ${Cyan}-a${reset}${BBlue} --> Password"
+	echo -e "	${BBlue}[X] ${Cyan}-U${reset}${BBlue} --> Username List"
+	echo -e "	${BBlue}[X] ${Cyan}-A${reset}${BBlue} --> Password List"
+	echo -e "	${BBlue}[X] ${Cyan}-C${reset}${BBlue} --> Username:Password (Colon Seperated Format File)"
+	echo -e "	${BBlue}[X] ${Cyan}-j${reset}${BBlue} --> Use Defualt (seclists) | Defualt Option"
+	echo -e "	${BBlue}[X] ${Cyan}-b${reset}${BBlue} --> Disable Hydra Attack"
 	echo -e "${Yellow}[XXX] Network Discovery Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${UCyan}-R${reset}${BBlue} --> IP Range (192.168.0.0/24)"
-	echo -e "	${BBlue}[X] ${UCyan}-N${reset}${BBlue} --> Interface (wlan0, wlan1, eth0...)"
-	echo -e "${UYellow}[O] OUTPUT FILE:${reset}"
-	echo -e "	${Green}[+] - NMAP: $DIRECTORY/nmap_[ip].nmap${reset}"
-	echo -e "	${Green}[+] - NIKTO: $DIRECTORY/nikto_[ip].txt${reset}"
-	echo -e "	${Green}[+] - Gobuster: $DIRECTORY/gobuster_[ip].txt${reset}"
-	echo -e "	${Green}[+] - Wpscan: $DIRECTORY/wpscan_[ip].txt${reset} "
-	echo -e "	${Green}[+] - Network Discovery: $DIRECTORY/netdiscover_[interface/range]_[ip].txt${reset}"
+	echo -e "	${BBlue}[X] ${Cyan}-R${reset}${BBlue} --> IP Range (192.168.0.0/24)"
+	echo -e "	${BBlue}[X] ${Cyan}-N${reset}${BBlue} --> Interface (wlan0, wlan1, eth0...)"
+	echo -e "${UYellow}[O] IMPORTANT:${reset}"
+	echo -e "	${Green}[+] - located in $(pwd)/rubicon"
+	echo -e "	${Red}[!] - Using Net Discovery scan or either stand alone scans will not run full script, only those scans"
 	echo -e "	${Red}[!] - Defualt text file for Hydra is secList at /usr/share/seclists/Passwords/xato_10_million_merged.txt"
 	echo -e "	${Cyan}[+] Thank You For Using RUBICON${reset}"
 }
@@ -298,82 +336,97 @@ function start {
 	else
 		if [[ -z $help ]]; then
 			directory_test $@
-			if [[ ! -z $Hostname ]]; then
-				nslookup $@
-				ip_Active $@
-				if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
-					echo -e "${Green}[Validation] Validating $ip${reset}"
-					sleep $r
-					echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
-					sleep $r
-				else
-					echo -e "${Green}[Validation] Validating $ip${reset}"
-					sleep $r
-					echo -e "${Red}[Invalid] $ip is Invalid or Inactive ns${reset}"
-					echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
-					exit 1
-				fi
-			elif [[ -z $Hostname ]]; then
-				if [[ ! -z $range ]]; then
-					echo -e "${Cyan}[Initialized] Network Discovery Scan (Range)${reset}"
-					sudo nmap -o "${DIRECTORY}/netdiscover_range.txt" $range
-					echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
-					exit 1
-				elif [[ ! -z $interface ]]; then
-					echo -e "${Cyan}[Initialized] Network Discovery Scan (Interface)${reset}"
-					sudo arp -i $interface
-					echo $(sudo arp -i $interface) >> "${DIRECTORY}/netdiscover_$interface.txt"
-					echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
-					exit 1
-				fi
-				ip_Active $@
-				if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
-					echo -e "${Green}[Validation] Validating $ip${reset}"
-					sleep $r
-					echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
-					sleep $r
-				else
-					echo -e "${Green}[Validation] Validating $ip${reset}"
-					sleep $r
-					echo -e "${Red}[Invalid] $ip is Invalid or Inactive ip${reset}"
-					echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
-					exit 1
-				fi
-			fi
-			NMAP $@
-			validate_ports $@
-			if [[ ! -z $http ]]; then
-				GOBUSTER $@
+			if [[ $stand_alone_nikto == "True" ]]; then
 				NIKTO $@
-				if [[ $wp_diasbled == "True" ]]; then
-					echo -e "${Red}[WORDPRESS] WPSCAN has been disabled${reset}"
-					sleep $r
-				else
-					if grep --quiet "$ip/wordpress" "$DIRECTORY"/gobuster_"$ip".txt; then
-						echo -e "${Cyan}[Initialized] Wordpress scan is starting${reset}"
+			elif [[ $stand_alone_wpscan == "True" ]]; then
+				WORDPRESS $@
+			else
+				if [[ ! -z $Hostname ]]; then
+					nslookup $@
+					ip_Active $@
+					if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
+						echo -e "${Green}[Validation] Validating $ip${reset}"
 						sleep $r
-						WORDPRESS $@
-						echo -e "${Cyan}[Finished] Wordpress scan is complete${reset}"
+						echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
+						sleep $r
 					else
-						echo -e "${Red}[WORDPRESS] WordPress is not active on the host ${ip}. Not scanning${reset}"
+						echo -e "${Green}[Validation] Validating $ip${reset}"
+						sleep $r
+						echo -e "${Red}[Invalid] $ip is Invalid or Inactive ns${reset}"
+						echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
+						exit 1
+					fi
+				elif [[ -z $Hostname ]]; then
+					if [[ ! -z $range ]]; then
+						echo -e "${Cyan}[Initialized] Network Discovery Scan (Range)${reset}"
+						sudo nmap -o "${DIRECTORY}/netdiscover_range.txt" $range
+						echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
+						exit 1
+					elif [[ ! -z $interface ]]; then
+						echo -e "${Cyan}[Initialized] Network Discovery Scan (Interface)${reset}"
+						sudo arp -i $interface
+						echo $(sudo arp -i $interface) >> "${DIRECTORY}/netdiscover_$interface.txt"
+						echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
+						exit 1
+					fi
+					ip_Active $@
+					if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
+						echo -e "${Green}[Validation] Validating $ip${reset}"
+						sleep $r
+						echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
+						sleep $r
+					else
+						echo -e "${Green}[Validation] Validating $ip${reset}"
+						sleep $r
+						echo -e "${Red}[Invalid] $ip is Invalid or Inactive ip${reset}"
+						echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
+						exit 1
 					fi
 				fi
-			else
-				echo -e "${Blue}[Skipping] Port 80 closed, unable to run GOBUSTER${reset}"
-				echo -e "${Blue}[Skipping] Port 80 closed, unable to run NIKTO${reset}"
-				echo -e "${Blue}[Skipping] Port 80 closed, unable to run WPSCAN${reset}"
-			fi
-			if [[ ! -z $ssh ]]; then
-				if [[ ! -z $hydra_disabled ]]; then
-					echo -e "${Yellow}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
+				NMAP $@
+				validate_ports $@
+				if [[ ! -z $http ]]; then
+					GOBUSTER $@
+					NIKTO $@
+					if [[ $wp_diasbled == "True" ]]; then
+						echo -e "${Red}[WORDPRESS] WPSCAN has been disabled${reset}"
+						sleep $r
+					else
+						if grep --quiet "$ip/wordpress" "$DIRECTORY"/gobuster_"$ip".txt; then
+							echo -e "${Cyan}[Initialized] Wordpress scan is starting${reset}"
+							sleep $r
+							WORDPRESS $@
+							echo -e "${Cyan}[Finished] Wordpress scan is complete${reset}"
+						else
+							echo -e "${Red}[WORDPRESS] WordPress is not active on the host ${ip}. Not scanning${reset}"
+						fi
+					fi
 				else
-					HYDRA $@
+					echo -e "${Blue}[Skipping] Port 80 closed, unable to run GOBUSTER${reset}"
+					echo -e "${Blue}[Skipping] Port 80 closed, unable to run NIKTO${reset}"
+					echo -e "${Blue}[Skipping] Port 80 closed, unable to run WPSCAN${reset}"
 				fi
-			else
-				echo -e "${Blue}[Skipping] Port 22 closed, unable to run HYDRA ssh brutefore attack${reset}"
+				if [[ ! -z $dns ]]; then
+					if [[ $dig_enabled == "True" ]] || [[ -z $dig_enabled ]]; then
+						DIG
+					elif [[ $dig_enabled == "False" ]]; then
+						echo -e "${RED}[DIG] DIG DNS Scan has been disabled${reset}"
+					fi
+				else
+					echo -e "${Blue}[Skipping] Port 53 closed, unable to run DIG DNS Scan${reset}"
+				fi
+				if [[ ! -z $ssh ]]; then
+					if [[ ! -z $hydra_disabled ]]; then
+						echo -e "${RED}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
+					else
+						HYDRA $@
+					fi
+				else
+					echo -e "${Blue}[Skipping] Port 22 closed, unable to run HYDRA ssh brutefore attack${reset}"
+				fi
+				echo -e "${Green}[Finished] All scans complete thank you for using rubicon By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
+				exit 1
 			fi
-			echo -e "${Green}[Finished] All scans complete thank you for using rubicon By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
-			exit 1
 		fi
 	fi
 
@@ -392,7 +445,7 @@ fi
 
 
 
-while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlmsPpT" args; do
+while getopts "h-helpZI:u:a:R:N:U:A:C:H:n:W:jbvozqlmsPpTDd" args; do
 	case "$args" in
 		-help) help="b"; syntax;;
 		h) help="b"; syntax;;
@@ -418,6 +471,33 @@ while getopts "h-helpZI:u:a:R:N:U:A:C:H:jbvozqlmsPpT" args; do
 		P) deep=True;;
 		p) lose=True;;
 		T) skip_validation=True;;
+		D) dig_enabled="True";;
+		d) dig_enabled="False";;
+		n) stand_alone_nikto="True" ; nikto_host=${OPTARG};;
+		W) stand_alone_wpscan="True" ; wp_host=${OPTARG};;
 	esac
 done
 start
+
+# Usable
+#
+#B
+#c
+#Ee
+#Ff
+#Gg
+#i
+#J
+#Kk
+#L
+#M
+#O
+#Q
+#r
+#S
+#t
+#Vv
+#w
+#Xx
+#Yy
+#z
