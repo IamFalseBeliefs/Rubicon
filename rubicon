@@ -27,6 +27,29 @@ UYellow='\033[4;33m'      # Yellow
 UCyan='\033[4;36m'        # Cyan
 On_IRed='\033[0;101m'     # Red
 
+# Linux Enumeration (enum4linux)
+function linux_enum {
+	if [[ ! -z $enum_user ]] || [[ ! -z $enum_pass ]]; then
+		if [[ ! -z $enum_user ]] && [[ -z $enum_pass ]]; then
+			echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
+			enum4linux -u "$enum_user" $ip
+			echo -e "${Blue}[Finished] Complete enumerating linux system information"
+		elif [[ -z $enum_user ]] && [[ ! -z $enum_pass ]]; then
+			echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
+			enum4linux -p "$enum_pass" $ip
+			echo -e "${Blue}[Finished] Complete enumerating linux system information"
+		elif [[ -z $enum_user ]] && [[ -z $enum_pass ]]; then
+			echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
+			enum4linux -p "$enum_pass" -u "$enum_user" $ip
+			echo -e "${Blue}[Finished] Complete enumerating linux system information"
+		fi
+	else
+		echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
+		enum4linux -a -U $ip
+		echo -e "${Blue}[Finished] Complete enumerating linux system information"
+	fi
+}
+
 # DNS (DIG)
 function DIG {
 	echo -e "${Cyan}[Initialized] Starting Dig scan${reset}"
@@ -85,24 +108,29 @@ function HYDRA {
 	elif [[ ! -z $U ]] && [[ ! -z $A ]]; then
 		sudo hydra -s 22 -L $U -P $A $ip ssh -t 5 -v
 	elif [[ ! -z $u ]] && [[ -z $a || $A ]]; then
-		WORDLIST="/usr/share/seclists/Passwords/xato_10_million_merged.txt"
+		WORDLIST="/usr/share/wordlists/rockyou.txt"
 		sudo hydra -s 22 -l $u -P WORDLIST $ip ssh -t 5 -v
 	elif [[ ! -z $a ]] && [[ -z $u || -z $U ]]; then
-		WORDLIST="/usr/share/seclists/Passwords/xato_10_million_merged.txt"
+		WORDLIST="/usr/share/wordlists/rockyou.txt"
 		sudo hydra -s 22 -L $WORDLIST -p $a $ip ssh -t 5 -v
 	elif [[ ! -z $u ]] && [[ ! -z $A ]]; then
 		sudo hydra -s 22 -l $u -P $A $ip ssh -t 5 -v
 	elif [[ ! -z $U ]] && [[ ! -z $a ]]; then
 		sudo hyda -s 22 -L $U -p $a $ip ssh -t 5 -v
 	elif [[ $hydra_defualt == "True" ]] || [[ -z $hydra_defualt ]]; then
-		WORDLIST="/usr/share/seclists/Passwords/xato_10_million_merged.txt"
+		WORDLIST="/usr/share/wordlists/rockyou.txt"
 		if [[ -f $WORDLIST ]]; then
 			sudo hydra -s 22 -L $WORDLIST -P $WORDLIST $ip ssh -t 5 -v
 		elif [[ ! -f $WORDLIST ]]; then
-			secDir="/usr/share/seclists/Passwords"
+			secDir="/usr/share/wordlists"
 			echo -e "${Red}File Faliure] You have opted to use the defualt text file for Hydra${reset}"
 			echo -e "${Red}[File Faliure] Creating file${reset}"
-			sudo cat $secDir/xato-net-10-million-passwords-10.txt $secDir/xato-net-10-million-passwords-100.txt $secDir/xato-net-10-million-passwords-1000.txt $secDir/xato-net-10-million-passwords-10000.txt $secDir/xato-net-10-million-passwords-100000.txt $secDir/xato-net-10-million-passwords-1000000.txt $secDir/xato-net-10-million-passwords-dup.txt $secDir/xato-net-10-million-passwords.txt >> $secDir/xato_10_million_merged.txt
+			git clone https://github.com/praetorian-inc/Hob0Rules.git
+			cd ./Hob0Rules/wordlists
+			gzip -d rockyou.txt.gz
+			sudo mv ./rockyou.txt /usr/share/wordlists
+			cd ../../
+			rm -rf Hob0Rules
 			echo -e "${green}[Hydra] Running Hydra attack"
 			sleep $r
 			HYDRA
@@ -298,15 +326,18 @@ function syntax {
 	echo -e "	${BBlue}[X] ${Cyan}-U${reset}${BBlue} --> Username List"
 	echo -e "	${BBlue}[X] ${Cyan}-A${reset}${BBlue} --> Password List"
 	echo -e "	${BBlue}[X] ${Cyan}-C${reset}${BBlue} --> Username:Password (Colon Seperated Format File)"
-	echo -e "	${BBlue}[X] ${Cyan}-j${reset}${BBlue} --> Use Defualt (seclists) | Defualt Option"
+	echo -e "	${BBlue}[X] ${Cyan}-j${reset}${BBlue} --> Use Defualt (RockYou) | Defualt Option"
 	echo -e "	${BBlue}[X] ${Cyan}-b${reset}${BBlue} --> Disable Hydra Attack"
 	echo -e "${Yellow}[XXX] Network Discovery Specifications:${reset}"
 	echo -e "	${BBlue}[X] ${Cyan}-R${reset}${BBlue} --> IP Range (192.168.0.0/24)"
 	echo -e "	${BBlue}[X] ${Cyan}-N${reset}${BBlue} --> Interface (wlan0, wlan1, eth0...)"
+	echo -e "${Yellow}[XXX] enum4linux Specifications (Optional):${reset}"
+	echo -e "	${BBlue}[X] ${Cyan}-E${reset}${BBlue} --> Username"
+	echo -e "	${BBlue}[X] ${Cyan}-F${reset}${BBlue} --> Password"
 	echo -e "${UYellow}[O] IMPORTANT:${reset}"
 	echo -e "	${Green}[+] - located in $(pwd)/rubicon"
 	echo -e "	${Red}[!] - Using Net Discovery scan or either stand alone scans will not run full script, only those scans"
-	echo -e "	${Red}[!] - Defualt text file for Hydra is secList at /usr/share/seclists/Passwords/xato_10_million_merged.txt"
+	echo -e "	${Red}[!] - Defualt text file for Hydra is /usr/share/wordlists/rockyou.txt"
 	echo -e "	${Cyan}[+] Thank You For Using RUBICON${reset}"
 }
 
@@ -423,6 +454,7 @@ function start {
 				else
 					echo -e "${Blue}[Skipping] Port 53 closed, unable to run DIG DNS Scan${reset}"
 				fi
+				linux_enum $@
 				if [[ ! -z $ssh ]]; then
 					if [[ ! -z $hydra_disabled ]]; then
 						echo -e "${Red}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
@@ -483,6 +515,8 @@ while getopts "h-helpZI:u:a:R:N:U:A:C:H:n:W:jbvozqlmsPpTDd" args; do
 		d) dig_enabled="False";;
 		n) stand_alone_nikto="True" ; nikto_host=${OPTARG};;
 		W) stand_alone_wpscan="True" ; wp_host=${OPTARG};;
+		E) enum_user=${OPTARG};;
+		F) enum_pass=${OPTARG};;
 	esac
 done
 start
@@ -491,8 +525,8 @@ start
 #
 #B
 #c
-#Ee
-#Ff
+#e
+#f
 #Gg
 #i
 #J
