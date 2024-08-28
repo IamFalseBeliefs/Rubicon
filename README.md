@@ -6,7 +6,7 @@ Automation Tool for Pentesting
 # The meaning is to help automate the begining steps of a 
 # penetration tester
 # how to run?: 
-	# chmod +x penstart
+	# chmod +x rubicon
 	# sudo rubicon --help
 # thank you for using penetration essentials
 
