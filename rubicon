@@ -1,545 +1,397 @@
 #!/bin/bash
-# // This program will automatically run pentesting commands for you \\ #
-# Variables
-USER=$(whoami)
-DIRECTORY="$(pwd)/rubicon"
-r=$(awk 'BEGIN { srand(); print int(rand() * 3) + 1 }')
-SCRIPT="$(readlink -f "$0")"
-SCRIPTFILE="$(basename "$SCRIPT")"             # get name of the file (not full path)
-SCRIPTPATH="$(dirname "$SCRIPT")"
-SCRIPTNAME="$0"
-ARGS=( "$@" )                                  # fixed to make array of args (see below)
-BRANCH="master"
-# Colors
-# Reset
-reset='\033[0m'       # Text Reset
-# Regular Colors
-Black='\033[0;30m'        # Black
-Red='\033[0;31m'          # Red
-Green='\033[0;32m'        # Green
-Yellow='\033[0;33m'       # Yellow
-Blue='\033[0;34m'         # Blue
-Purple='\033[0;35m'       # Purple
-Cyan='\033[0;36m'         # Cyan
-White='\033[0;37m'        # White
-BBlue='\033[1;34m'        # Blue
-UYellow='\033[4;33m'      # Yellow
-UCyan='\033[4;36m'        # Cyan
-On_IRed='\033[0;101m'     # Red
 
-# Linux Enumeration (enum4linux)
-function linux_enum {
-	if [[ ! -z $enum_user ]] || [[ ! -z $enum_pass ]]; then
-		if [[ ! -z $enum_user ]] && [[ -z $enum_pass ]]; then
-			echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
-			enum4linux -u "$enum_user" $ip
-			echo -e "${Blue}[Finished] Complete enumerating linux system information"
-		elif [[ -z $enum_user ]] && [[ ! -z $enum_pass ]]; then
-			echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
-			enum4linux -p "$enum_pass" $ip
-			echo -e "${Blue}[Finished] Complete enumerating linux system information"
-		elif [[ -z $enum_user ]] && [[ -z $enum_pass ]]; then
-			echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
-			enum4linux -p "$enum_pass" -u "$enum_user" $ip
-			echo -e "${Blue}[Finished] Complete enumerating linux system information"
-		fi
-	else
-		echo -e "${Blue}[Initialized] Enumerating linux system information and usernames${reset}"
-		enum4linux -a -U $ip
-		echo -e "${Blue}[Finished] Complete enumerating linux system information"
-	fi
+# Create Output Directory
+function CreateOutDir {
+  # Set default if not provided
+  if [[ -z "$CustomOutputDir" ]]; then
+    CustomOutputDir="$(pwd)/Rubicon"
+  fi
+  # Only create if it doesn't already exist
+  if [[ -d "$CustomOutputDir" ]]; then
+    echo -e "[Output Directory] Directory already exists: $CustomOutputDir"
+  else
+    mkdir -p "$CustomOutputDir"
+    echo -e "[Output Directory] Created output directory at $CustomOutputDir"
+  fi
 }
 
-# DNS (DIG)
-function DIG {
-	echo -e "${Cyan}[Initialized] Starting Dig scan${reset}"
-	sudo dig axfr @$ip
-	sudo dig axfr @$ip >> "$DIRECTORY/dig_dns_scan_$ip.txt"
-	echo -e "${Cyan}[Finished] Complete Dig scan${reset}"
-}
 
-# Wordpess Scan
-function WORDPRESS {
-
-	if [[ $stand_alone_wpscan == "True" ]]; then
-		echo -e "${Cyan}[Initialized] Wordpress Scan${reset}"
-		sudo wpscan --url $wp_host --wp-content-dir -at -eu --disable-tls-checks
-		sudo wpscan --url $wp_host --wp-content-dir -at -eu --disable-tls-checks -o "$DIRECTORY/wpscan_Stand_Alone_Scan.txt"
-		echo -e "${Yellow}[Finished] Wordpress scan is complete${reset}"
-	else
-		if [[ $wp_output == "verbose" ]]; then
-			echo -e "${Cyan}[WORDPRESS] Verbose only selected${reset}"
-			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks
-		elif [[ $wp_output == "output" ]]; then
-			echo -e "${Cyan}[WORDPRESS] Output only selected${reset}"
-			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks -o "$DIRECTORY/wpscan_$ip.txt"
-		elif [[ $wp_output == "both" ]] || [[ -z $wp_output ]]; then
-			echo -e "${Cyan}[WORDPRESS] Verbose and Output selected${reset}"
-			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks -o "$DIRECTORY/wpscan_$ip.txt"
-			sudo wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks
-		fi
-	fi
-}
-
-# Hydra Function
-function HYDRA {
-	if [[ ! -z $u ]]; then
-		echo -e "${White}[Hydra] Using Username ${Red}$u${reset}${White} for SSH brute-force${reset}"
-	fi
-	if [[ ! -z $a ]]; then
-		echo -e "${White}[Hydra] Using Password ${Red}$a${reset}${White} for SSH brute-force${reset}"
-	fi
-	if [[ ! -z $U ]]; then
-		echo -e "${White}[Hydra] Using Username Dictionary List ${Red}$U${reset}${White} for SSH brute-force${reset}"
-		WORDLIST=$U
-	fi
-	if [[ ! -z $A ]]; then
-		echo -e "${White}[Hydra] Using Password Dictionary List ${Red}$A${reset}${White} for SSH brute-force${reset}"
-		WORDLIST=$A
-	fi
-	if [[ $combined == "True" ]]; then
-		echo -e "${White}[Hydra] Using Colon Seperated Dictionary List ${Red}$A${reset}${White} for SSH brute-force${reset}"
-		WORDLIST=$combined_file
-	fi
-	if [[ ! -z $u ]] && [[ ! -z $a ]]; then
-		sudo hydra -s 22 -l $u -p $a $ip ssh -t 5 -v
-	elif [[ $combined == True ]]; then
-		sudo hydra -s 22 -C $WORDLIST $ip ssh -t 5 -v
-	elif [[ ! -z $U ]] && [[ ! -z $A ]]; then
-		sudo hydra -s 22 -L $U -P $A $ip ssh -t 5 -v
-	elif [[ ! -z $u ]] && [[ -z $a || $A ]]; then
-		WORDLIST="/usr/share/wordlists/rockyou.txt"
-		sudo hydra -s 22 -l $u -P WORDLIST $ip ssh -t 5 -v
-	elif [[ ! -z $a ]] && [[ -z $u || -z $U ]]; then
-		WORDLIST="/usr/share/wordlists/rockyou.txt"
-		sudo hydra -s 22 -L $WORDLIST -p $a $ip ssh -t 5 -v
-	elif [[ ! -z $u ]] && [[ ! -z $A ]]; then
-		sudo hydra -s 22 -l $u -P $A $ip ssh -t 5 -v
-	elif [[ ! -z $U ]] && [[ ! -z $a ]]; then
-		sudo hyda -s 22 -L $U -p $a $ip ssh -t 5 -v
-	elif [[ $hydra_defualt == "True" ]] || [[ -z $hydra_defualt ]]; then
-		WORDLIST="/usr/share/wordlists/rockyou.txt"
-		if [[ -f $WORDLIST ]]; then
-			sudo hydra -s 22 -L $WORDLIST -P $WORDLIST $ip ssh -t 5 -v
-		elif [[ ! -f $WORDLIST ]]; then
-			secDir="/usr/share/wordlists"
-			echo -e "${Red}File Faliure] You have opted to use the defualt text file for Hydra${reset}"
-			echo -e "${Red}[File Faliure] Creating file${reset}"
-			git clone https://github.com/praetorian-inc/Hob0Rules.git
-			cd ./Hob0Rules/wordlists
-			gzip -d rockyou.txt.gz
-			sudo mv ./rockyou.txt /usr/share/wordlists
-			cd ../../
-			rm -rf Hob0Rules
-			echo -e "${green}[Hydra] Running Hydra attack"
-			sleep $r
-			HYDRA
-		fi
-	fi
-}
-
-# NIKTO function
-function NIKTO {
-
-	if [[ $stand_alone_nikto == "True" ]]; then
-		echo -e "${Yellow}[Initialized] NIKTO scan is starting${reset}"
-		sleep $r
-		sudo nikto --host $nikto_host -C all -output "$DIRECTORY/nikto_Stand_Alone_Scan.txt"
-		echo -e "${Yellow}[Finished] NIKTO scan is complete${Yellow}"
-		exit 1
-	fi
-	echo -e "${Yellow}[Initialized] NIKTO scan is starting${reset}"
-	sleep $r
-	sudo nikto --host $ip -C all -output "$DIRECTORY/nikto_$ip.txt"
-	echo -e "${Yellow}[Finished] NIKTO scan is complete${reset}"
-}
-
-# Gobuster function
-function GOBUSTER {
-	echo -e "${Purple}[Initialized] GOBUSTER is starting${reset}"
-	sleep $r
-	if [[ $file_size == "large" ]]; then
-		echo -e "${Purple}[GOBUSTER] Using large GOBUSTER file${reset}"
-		sudo gobuster -u http://$ip/ -w /usr/share/wordlists/dirbuster/directory-list-1.0.txt -o "$DIRECTORY/gobuster_$ip.txt" dir
-		echo -e "${Purple}[Finished] GOBUSTER scan complete${reset}"
-	elif [[ $file_size == "medium" ]]; then
-		echo -e "${Purple}[GOBUSTER] Using medium GOBUSTER file${reset}"
-		sudo gobuster -u http://$ip/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -o "$DIRECTORY/gobuster_$ip.txt" dir
-		echo -e "${Purple}[Finished] GOBUSTER scan complete${reset}"
-	elif [[ $file_size == "small" ]] || [[ -z $file_size ]]; then
-		echo -e "${Purple}[GOBUSTER] Using small/defualt GOBUSTER file${reset}"
-		sudo gobuster -u http://$ip/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -o "$DIRECTORY/gobuster_$ip.txt" dir
-		echo -e "${Purple}[Finished] GOBUSTER scan complete${reset}"
-	fi
-}
-
-# Testing which ports are open to run accordingly
-function validate_ports {
-
-	if nc -z $ip 80 ; then
-		echo -e "${Green}[Port Validation] Testing if port 80 (HTTP) is open${reset}"
-		sleep $r
-		echo -e "${Green}[Port Validation] Port 80 (HTTP) is open${reset}"
-		http="open"
-	else
-		echo -e "${Green}[Port Validation] Testing if port 80 (HTTP) is open${reset}"
-		sleep $r
-		echo -e "${Red}[Port Validation] Port 80 (HTTP) is closed${reset}"
-		
-	fi
-	if nc -z $ip 22 ; then
-		echo -e "${Green}[Port Validation] Testing if port 22 is open${reset}"
-		sleep $r
-		echo -e "${Green}[Port Validation] Port 22 is open${reset}"
-		ssh="Open"
-	else
-		echo -e "${Green}[Port Validation] Testing if port 22 is open${reset}"
-		sleep $r
-		echo -e "${Red}[Port Validation] Port 22 is closed${reset}"
-		
-	fi
-	if nc -z $ip 53 ; then
-		echo -e "${Green}[Port Validation] Testing if port 53 (DNS) is open${reset}"
-		sleep $r
-		echo -e "${Green}[Port Validation] Port 53 (DNS) is open${reset}"
-		dns="open"
-	else
-		echo -e "${Green}[Port Validation] Testing if port 53 (DNS) is open${reset}"
-		sleep $r
-		echo -e "${Red}[Port Validation] Port 53 (DNS) is closed${reset}"
-	fi
-	export http
-	export https
-	export dns
-	export ssh
-}
-
-# NMAP Function
-function NMAP {
-	echo -e "${Cyan}[Initialized] NMAP scan is starting${reset}"
-	if [[ ! -z $deep ]]; then
-		sudo nmap -sV -T4 -A -p- -Pn -O -o "$DIRECTORY/nmap_deep_$ip.txt" $ip
-	elif [[ ! -z $lose ]] || [[ -z $lose ]]; then
-		sudo nmap -sV -O -T4 -Pn -o "$DIRECTORY/nmap_laxed_$ip.txt" $ip
-	fi
-	sleep 1
-	echo -e "${Cyan}[Finished] NMAP scan complete${reset}"
-}
-
-# Creates Directory to save output files to
-function directory_test {
-	if [[ ! -d "$DIRECTORY" ]]; then
-		echo -e "${Red}[Output Directory] Output directory $DIRECTORY does not exist${reset}"
-		echo -e "${Green}[Creating Directory] Output directory $DIRECTORY is being created${reset}"
-		sudo mkdir $DIRECTORY
-		if [[ -d $DIRECTORY ]]; then
-			sleep 1.$r
-			echo -e "${Green}[Created Directory] Output directory $DIRECTORY has been created${reset}"
-		else
-			echo -e "${Red}[Invalid] You must create the directory to use the script${reset}"
-			exit 1
-		fi
-	else
-		echo -e "${Blue}[Skipping] Output directory $DIRECTORY already exists. Skipping${reset}"
-		sleep 1.3
-	fi
-}
-
-# Validate IP Address format
-function valid_ip_format {
-    local  ip=$ip
-    local  stat=1
-    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        OIFS=$IFS
-        IFS='.'
-        ip=($ip)
-        IFS=$OIFS
-        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
-            && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
-        stat=$?
+# IP Address or Hostname Handling
+function IPAddrHandling {
+  if [[ $host =~ ^(([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)\.)*([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)$ ]]; then
+    ip=$(getent ahosts "$host" | awk '/STREAM/ { print $1; exit }')
+    if [[ -n "$ip" ]]; then
+      echo "[IP Address] $ip is active on hostname $host"
+      return 0
+    else
+      echo "[IP Address] Failed to resolve $host"
+      return 1
     fi
-    return $stat
+
+  elif [[ $host =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    ip="$host"
+    if fping -c1 -t300 "$ip" &>/dev/null; then
+      echo "[IP Address] $ip is active"
+      return 0
+    else
+      echo "[IP Address] $ip is not active"
+      return 1
+    fi
+  else
+    echo "[IP Address] Invalid input: $host"
+    return 1
+  fi
 }
 
-# Checks if IP Address is active
-function ip_Active {
-	if [[ $skip_validation == "True" ]]; then
-		is_host_running="True"
-	else
-		fping -c1 -t300 $ip 2>/dev/null 1>/dev/null
-		if [ "$?" = 0 ]; then
-			is_host_running="True"
-		else
-			is_host_running="False"
-		fi
-	fi
-	export is_host_running
+function PortTest {
+  echo "[PortTest] Testing open ports on $ip"
+  timeout 1 bash -c "echo > /dev/tcp/$ip/80" 2>/dev/null
+  if [[ $? -eq 0 ]]; then
+    echo "[PortTest] Port 80 (HTTP) is open on $ip"
+    HTTPOpen=true
+  else
+    echo "[PortTest] Port 80 (HTTP) is closed or filtered on $ip"
+    HTTPOpen=false
+  fi
+  timeout 1 bash -c "echo > /dev/tcp/$ip/22" 2>/dev/null
+  if [[ $? -eq 0 ]]; then
+    echo "[PortTest] Port 22 (SSH) is open on $ip"
+    SSHOpen=true
+  else
+    echo "[PortTest] Port 22 (SSH) is closed or filtered on $ip"
+    SSHOpen=false
+  fi
 }
 
-# Host name to IP conversion
-function nslookup {
-	if [[ ! -z $Hostname ]]; then
-		ip=$(sudo nslookup $Hostname | grep "Address" | awk '{print $2}' | sed -n 2p)
-		export ip
-	fi
+function NMAP_Func {
+  echo -e "[NMAP] Starting NMAP scan on $ip"
+  if [[ $RunNMAPDeep ]]; then
+    sudo nmap -sV -T4 -A -p- -Pn -O $ip | tee "$CustomOutputDir/nmap_$ip.md" > /dev/null
+    cat $CustomOutputDir/nmap_$ip.md
+  else
+    sudo nmap -sV -O -T4 -Pn $ip | tee "$CustomOutputDir/nmap_$ip.md" > /dev/null
+  fi
+  cat $CustomOutputDir/nmap_$ip.md
+  echo -e "[NMAP] NMAP scan on $ip complete"
+
 }
 
-# Syntax
+function WPScanFunc {
+  echo "[WPScan] Starting WPScan on $ip"
+  local base_cmd="wpscan --url http://$ip/wordpress --wp-content-dir -at -eu --disable-tls-checks"
+  local output_file="$CustomOutputDir/wpscan_$ip.txt"
+  case "$WPScanOutputMode" in
+    verbose)
+      echo "[WPScan] Verbose only selected"
+      eval "$base_cmd"
+      ;;
+    output)
+      echo "[WPScan] Output only selected"
+      eval "$base_cmd" > "$output_file"
+      ;;
+    both|"")
+      echo "[WPScan] Verbose and output selected"
+      eval "$base_cmd" | tee "$output_file"
+      ;;
+  esac
+  echo "[WPScan] WPScan on $ip complete"
+}
+
+function NiktoFunc {
+  echo "[Nikto] Starting Nikto scan on $ip"
+  local output_file="$CustomOutputDir/nikto_$ip.txt"
+  nikto -host "$ip" -nointeractive | tee "$output_file"
+  echo "[Nikto] Scan complete — output saved to $output_file"
+}
+
+function GobusterFunc {
+  echo "[Gobuster] Starting directory scan on $ip"
+  echo "[Gobuster] Using wordlist: $GoBusterWLPath"
+  local output_file="$CustomOutputDir/gobuster_$ip.txt"
+  gobuster dir -u "http://$ip" -w "$GoBusterWLPath" -t 40 | tee "$output_file"
+  echo "[Gobuster] Scan complete — output saved to $output_file"
+}
+
+function Enum4LinuxFunc {
+  echo "[Enum4Linux] Starting enumeration on $ip"
+  local output_file="$CustomOutputDir/enum4linux_$ip.txt"
+  enum4linux -a "$ip" | tee "$output_file"
+  echo "[Enum4Linux] Enumeration complete — output saved to $output_file"
+}
+
+function HydraFunc {
+  echo "[Hydra] Starting SSH brute-force on $ip"
+
+  local output_file="$CustomOutputDir/hydra_ssh_$ip.txt"
+  local base_cmd="hydra -t 4 -o $output_file ssh://$ip"
+  local rockyou="/usr/share/wordlists/rockyou.txt"
+  local gz_rockyou="/usr/share/wordlists/rockyou.txt.gz"
+  # Check for rockyou.txt or download/unzip if missing
+  if [[ ! -f "$rockyou" ]]; then
+    if [[ -f "$gz_rockyou" ]]; then
+      echo "[Hydra] Extracting rockyou.txt from .gz..."
+      sudo gunzip "$gz_rockyou"
+    else
+      echo "[Hydra] rockyou.txt not found. Attempting to download from GitHub..."
+      sudo mkdir -p /usr/share/wordlists
+      sudo curl -sSL -o "$rockyou" "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Leaked-Databases/rockyou.txt"
+
+      if [[ ! -f "$rockyou" ]]; then
+        echo "[Hydra] Failed to download rockyou.txt. Skipping Hydra scan."
+        return
+      fi
+    fi
+  fi
+  # Use rockyou.txt for both if no creds provided
+  if [[ -z "$HydraUser" && -z "$HydraPass" && -z "$HydraUserList" && -z "$HydraPassList" && -z "$HydraComboList" ]]; then
+    echo "[Hydra] No credentials provided. Using rockyou.txt for both username and password."
+    HydraUserList="$rockyou"
+    HydraPassList="$rockyou"
+  fi
+  # Build hydra command
+  if [[ -n "$HydraComboList" ]]; then
+    base_cmd+=" -C $HydraComboList"
+  elif [[ -n "$HydraUserList" && -n "$HydraPassList" ]]; then
+    base_cmd+=" -L $HydraUserList -P $HydraPassList"
+  elif [[ -n "$HydraUserList" && -n "$HydraPass" ]]; then
+    base_cmd+=" -L $HydraUserList -p $HydraPass"
+  elif [[ -n "$HydraUser" && -n "$HydraPassList" ]]; then
+    base_cmd+=" -l $HydraUser -P $HydraPassList"
+  elif [[ -n "$HydraUser" && -n "$HydraPass" ]]; then
+    base_cmd+=" -l $HydraUser -p $HydraPass"
+  else
+    echo "[Hydra] No valid credentials found. Skipping Hydra scan."
+    return
+  fi
+  echo "[Hydra] Running: $base_cmd"
+  eval "$base_cmd" | tee -a "$output_file"
+  echo "[Hydra] Scan complete — output saved to $output_file"
+}
+
+TheHarvesterFunc() {
+    echo "[*] Running theHarvester on $ip..."
+    theHarvester -d "$ip" -b all | tee "$CustomOutputDir/theHarvester.txt"
+}
+
+AmassFunc() {
+    echo "[*] Running amass on $ip..."
+    amass enum -d "$ip" | tee "$CustomOutputDir/amass.txt"
+}
+
+SubfinderFunc() {
+    echo "[*] Running subfinder on $ip..."
+    subfinder -d "$ip" | tee "$CustomOutputDir/subfinder.txt"
+}
+
+SSLScanFunc() {
+    echo "[*] Running sslscan on $ip..."
+    sslscan "$ip" | tee "$CustomOutputDir/sslscan.txt"
+}
+
+
 function syntax {
-	echo -e
-	echo -e "${Red}░▒▓███████▓▒░░▒▓█▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░░▒▓██████▓▒░ ░▒▓██████▓▒░░▒▓███████▓▒░   "
-	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
-	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
-	echo -e "░▒▓███████▓▒░░▒▓█▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
-	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
-	echo -e "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
-	echo -e "░▒▓█▓▒░░▒▓█▓▒░░▒▓██████▓▒░░▒▓███████▓▒░░▒▓█▓▒░░▒▓██████▓▒░ ░▒▓██████▓▒░░▒▓█▓▒░░▒▓█▓▒░  ${reset}"                                                                                
-	echo -e
-	echo -e "${Red}[XXX] // RUBICON By: ${On_IRed}FalseBeliefs${reset}${Red} \\\\\ [XXX]"
-	echo -e "${Yellow}[XXX] Syntax: sudo rubicon {args}${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-h or --help${reset}${BBlue} --> Help"
-	echo -e "	${BBlue}[X] ${Cyan}-I${reset}${BBlue} --> Specify IP_Address"
-	echo -e "	${BBlue}[X] ${Cyan}-T${reset}${BBlue} --> Skip Ping Validation for unpingable IP's"
-	echo -e "	${BBlue}[X] ${Cyan}-H${reset}${BBlue} --> Specify Hostname (i.e. github.com)"
-	echo -e "	${BBlue}[X] ${Cyan}-Z${reset}${BBlue} --> Update"
-	echo -e "${Yellow}[XXX] NMAP Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-P${reset}${BBlue} --> Deep Scan"
-	echo -e "	${BBlue}[X] ${Cyan}-p${reset}${BBlue} --> Laxed Scan | Defualt Option"
-	echo -e "${Yellow}[XXX] Gobuster Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-l${reset}${BBlue} --> Large File"
-	echo -e "	${BBlue}[X] ${Cyan}-m${reset}${BBlue} --> Medium File"
-	echo -e "	${BBlue}[X] ${Cyan}-s${reset}${BBlue} --> Small File | Defualt Option"
-	echo -e "${Yellow}[XXX] wpscan Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-W${reset}${BBlue} --> Stand Alone Scan (Usage: sudo rubicon -W URL)"
-	echo -e "	${BBlue}[X] ${Cyan}-v${reset}${BBlue} --> Verbose Only"
-	echo -e "	${BBlue}[X] ${Cyan}-o${reset}${BBlue} --> Output Only"
-	echo -e "	${BBlue}[X] ${Cyan}-z${reset}${BBlue} --> Output & Verbose | Defualt Option"
-	echo -e "	${BBlue}[X] ${Cyan}-q${reset}${BBlue} --> Disable wpscan"
-	echo -e "${Yellow}[XXX] NIKTO:${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-n${reset}${BBlue} --> Stand Alone Nikto Scan (Usage: sudo rubicon -n URL)"
-	echo -e "${Yellow}[XXX] DIG DNS Scan:${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-D${reset}${BBlue} --> Enable | Defualt Option"
-	echo -e "	${BBlue}[X] ${Cyan}-d${reset}${BBlue} --> Disable"
-	echo -e "${Yellow}[XXX] Hydra Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-u${reset}${BBlue} --> Username"
-	echo -e "	${BBlue}[X] ${Cyan}-a${reset}${BBlue} --> Password"
-	echo -e "	${BBlue}[X] ${Cyan}-U${reset}${BBlue} --> Username List"
-	echo -e "	${BBlue}[X] ${Cyan}-A${reset}${BBlue} --> Password List"
-	echo -e "	${BBlue}[X] ${Cyan}-C${reset}${BBlue} --> Username:Password (Colon Seperated Format File)"
-	echo -e "	${BBlue}[X] ${Cyan}-j${reset}${BBlue} --> Use Defualt (RockYou) | Defualt Option"
-	echo -e "	${BBlue}[X] ${Cyan}-b${reset}${BBlue} --> Disable Hydra Attack"
-	echo -e "${Yellow}[XXX] Network Discovery Specifications:${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-R${reset}${BBlue} --> IP Range (192.168.0.0/24)"
-	echo -e "	${BBlue}[X] ${Cyan}-N${reset}${BBlue} --> Interface (wlan0, wlan1, eth0...)"
-	echo -e "${Yellow}[XXX] enum4linux Specifications (Optional):${reset}"
-	echo -e "	${BBlue}[X] ${Cyan}-E${reset}${BBlue} --> Username"
-	echo -e "	${BBlue}[X] ${Cyan}-F${reset}${BBlue} --> Password"
-	echo -e "${UYellow}[O] IMPORTANT:${reset}"
-	echo -e "	${Green}[+] - located in $(pwd)/rubicon"
-	echo -e "	${Red}[!] - Using Net Discovery scan or either stand alone scans will not run full script, only those scans"
-	echo -e "	${Red}[!] - Defualt text file for Hydra is /usr/share/wordlists/rockyou.txt"
-	echo -e "	${Cyan}[+] Thank You For Using RUBICON${reset}"
+	echo
+	echo "░▒▓███████▓▒░░▒▓█▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░░▒▓██████▓▒░ ░▒▓██████▓▒░░▒▓███████▓▒░   "
+	echo "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo "░▒▓███████▓▒░░▒▓█▓▒░░▒▓█▓▒░▒▓███████▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo "░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░  "
+	echo "░▒▓█▓▒░░▒▓█▓▒░░▒▓██████▓▒░░▒▓███████▓▒░░▒▓█▓▒░░▒▓██████▓▒░ ░▒▓██████▓▒░░▒▓█▓▒░░▒▓█▓▒░  "
+	echo
+	echo "[XXX] // RUBICON By: FalseBeliefs \\\\ [XXX]"
+	echo "[XXX] Syntax: sudo ./rubicon.sh {args}"
+	echo "[+] General Options:"
+	echo "    [X] -I <ip>             --> Target IP address"
+	echo "    [X] -O <dir>            --> Custom output directory"
+	echo "[+] Nmap:"
+	echo "    [X] -N                  --> Run Nmap"
+	echo "    [X] -D                  --> Deep Nmap scan (-sV -T4 -A -p- -Pn -O)"
+	echo "    [X] -d                  --> Laxed Nmap scan (-sV -O -T4 -Pn)"
+	echo "[+] WPScan:"
+	echo "    [X] -W                  --> Run WPScan"
+	echo "    [X] -S <mode>           --> WPScan output mode: verbose, output, or both"
+	echo "[+] Nikto:"
+	echo "    [X] -K                  --> Run Nikto (web vuln scanner)"
+	echo "[+] Gobuster:"
+	echo "    [X] -B                  --> Run Gobuster"
+	echo "    [X] -L <path>           --> Wordlist for Gobuster"
+	echo "    [X] -F <bytes>          --> Minimum file size to include in results"
+	echo "[+] Enum4Linux:"
+	echo "    [X] -E                  --> Run Enum4Linux (SMB user/share enumeration)"
+  echo "[+] The Harvester (Web Enumeration):"
+	echo "    [X] -G                  --> Run The Harvester"
+  echo "[+] AMASS:"
+	echo "    [X] -J                  --> Run AMASS"
+  echo "[+] Subfinder:"
+	echo "    [X] -F                  --> Run Subfimder"
+  echo "[+] SSL Scan:"
+	echo "    [X] -T                  --> Run SSL Scan"
+	echo "[+] Hydra (SSH brute-force):"
+	echo "    [X] -A                  --> Run Hydra on SSH"
+	echo "    [X] -U <username>       --> Single username"
+	echo "    [X] -P <password>       --> Single password"
+	echo "    [X] -u <userlist>       --> Username wordlist"
+	echo "    [X] -p <passlist>       --> Password wordlist"
+	echo "    [X] -C <combo.txt>      --> Colon-separated user:pass list"
+  echo "[+] Install Dependencies:"
+	echo "    [X] -Z                  --> Install all tools for Rubicon"
+	echo "[+] Example:"
+	echo "    sudo ./rubicon.sh -I 192.168.1.10 -N -D -W -S both -K -B -L /wordlist.txt -H -u users.txt -p passwords.txt"
+	echo
 }
 
-# Update Function
-self_update() {
-    [ "$UPDATE_GUARD" ] && return
-    export UPDATE_GUARD=YES
-    cd "$SCRIPTPATH"
-    timeout 1s git fetch --quiet
-    timeout 1s git diff --quiet --exit-code "origin/main" "$SCRIPTFILE"
-    [ $? -eq 1 ] && {
-        if [ -n "$(git status --porcelain)" ];  # opposite is -z
-        then 
-            git stash push -m 'local changes stashed before self update' --quiet
+InstallDependencies() {
+    echo "[*] Checking and installing required tools..."
+
+    TOOLS=(
+        nmap wpscan hydra nikto gobuster enum4linux smbmap snmpwalk ldapsearch
+        whatweb sqlmap nuclei theHarvester amass subfinder feroxbuster sslscan
+        testssl.sh naabu masscan metasploit-framework aquatone
+    )
+    # Determine package manager
+    if command -v apt >/dev/null 2>&1; then
+        PKG_MGR="apt"
+        UPDATE_CMD="sudo apt update"
+        INSTALL_CMD="sudo apt install -y"
+    elif command -v dnf >/dev/null 2>&1; then
+        PKG_MGR="dnf"
+        UPDATE_CMD="sudo dnf check-update"
+        INSTALL_CMD="sudo dnf install -y"
+    elif command -v pacman >/dev/null 2>&1; then
+        PKG_MGR="pacman"
+        UPDATE_CMD="sudo pacman -Sy"
+        INSTALL_CMD="sudo pacman -S --noconfirm"
+    else
+        echo "[-] Unsupported package manager. Install dependencies manually."
+        return 1
+    fi
+    $UPDATE_CMD
+    for tool in "${TOOLS[@]}"; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "[+] Installing $tool..."
+            if [[ "$tool" == "testssl.sh" ]]; then
+                sudo git clone https://github.com/drwetter/testssl.sh /opt/testssl.sh
+                sudo ln -sf /opt/testssl.sh/testssl.sh /usr/local/bin/testssl.sh
+            elif [[ "$tool" == "wpscan" ]]; then
+                sudo gem install wpscan
+            elif [[ "$tool" == "enum4linux" ]]; then
+                sudo git clone https://github.com/CiscoCXSecurity/enum4linux.git /opt/enum4linux
+                sudo ln -sf /opt/enum4linux/enum4linux.pl /usr/local/bin/enum4linux
+            elif [[ "$tool" == "aquatone" ]]; then
+                ARCH=$(uname -m)
+                if [[ $ARCH == "x86_64" ]]; then
+                    wget https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64.zip -O /tmp/aquatone.zip
+                else
+                    echo "[-] Unsupported architecture for aquatone. Skipping."
+                    continue
+                fi
+                unzip /tmp/aquatone.zip -d /tmp/aquatone
+                sudo mv /tmp/aquatone/aquatone /usr/local/bin/
+                sudo chmod +x /usr/local/bin/aquatone
+            elif [[ "$tool" == "metasploit-framework" ]]; then
+                curl https://raw.githubusercontent.com/rapid7/metasploit-framework/master/msfupdate | sudo bash
+            else
+                $INSTALL_CMD "$tool"
+            fi
+        else
+            echo "[*] $tool is already installed."
         fi
-	echo -e "${Blue}[Update] Found a new version. Updating...${reset}"
-        git pull --force --quiet
-        git checkout main --quiet
-        git pull --force --quiet
-        #echo "Running the new version..."
-        sudo chmod +x $SCRIPTFILE
-        cd - > /dev/null                        # return to original working dir
-        #exec "$SCRIPTNAME" "${ARGS[@]}"
-        # Now exit this old instance
-        exit 1
-	}
-	echo -e "${Green}[Update] Already at the latest version. Exiting...${reset}"
-	exit 1
-}
-
-# Main Function
-function start {
-	if [[ ! -z $update ]]; then
-		self_update
-	else
-		if [[ -z $help ]]; then
-			directory_test $@
-			if [[ $stand_alone_nikto == "True" ]]; then
-				NIKTO $@
-			elif [[ $stand_alone_wpscan == "True" ]]; then
-				WORDPRESS $@
-			else
-				if [[ ! -z $Hostname ]]; then
-					nslookup $@
-					ip_Active $@
-					if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
-						echo -e "${Green}[Validation] Validating $ip${reset}"
-						sleep $r
-						echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
-						sleep $r
-					else
-						echo -e "${Green}[Validation] Validating $ip${reset}"
-						sleep $r
-						echo -e "${Red}[Invalid] $ip is Invalid or Inactive ns${reset}"
-						echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
-						exit 1
-					fi
-				elif [[ -z $Hostname ]]; then
-					if [[ ! -z $range ]]; then
-						echo -e "${Cyan}[Initialized] Network Discovery Scan (Range)${reset}"
-						sudo nmap -o "${DIRECTORY}/netdiscover_range.txt" $range
-						echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
-						exit 1
-					elif [[ ! -z $interface ]]; then
-						echo -e "${Cyan}[Initialized] Network Discovery Scan (Interface)${reset}"
-						sudo arp -i $interface
-						echo $(sudo arp -i $interface) >> "${DIRECTORY}/netdiscover_$interface.txt"
-						echo -e "${Cyan}[Finished] Network Discovery Scan${reset}"
-						exit 1
-					fi
-					ip_Active $@
-					if valid_ip_format $ip && [[ $is_host_running == "True" ]]; then
-						echo -e "${Green}[Validation] Validating $ip${reset}"
-						sleep $r
-						echo -e "${Green}[Validated] $ip is Valid and Active${reset}"
-						sleep $r
-					else
-						echo -e "${Green}[Validation] Validating $ip${reset}"
-						sleep $r
-						echo -e "${Red}[Invalid] $ip is Invalid or Inactive ip${reset}"
-						echo -e "${Red}[Reference] Please use the --help or -h option to find syntax${reset}"
-						exit 1
-					fi
-				fi
-				NMAP $@
-				validate_ports $@
-				if [[ ! -z $http ]]; then
-					GOBUSTER $@
-					NIKTO $@
-					if [[ $wp_diasbled == "True" ]]; then
-						echo -e "${Red}[WORDPRESS] WPSCAN has been disabled${reset}"
-						sleep $r
-					else
-						if grep --quiet "$ip/wordpress" "$DIRECTORY"/gobuster_"$ip".txt; then
-							echo -e "${Cyan}[Initialized] Wordpress scan is starting${reset}"
-							sleep $r
-							WORDPRESS $@
-							echo -e "${Cyan}[Finished] Wordpress scan is complete${reset}"
-						else
-							echo -e "${Red}[WORDPRESS] WordPress is not active on the host ${ip}. Not scanning${reset}"
-						fi
-					fi
-				else
-					echo -e "${Blue}[Skipping] Port 80 closed, unable to run GOBUSTER${reset}"
-					echo -e "${Blue}[Skipping] Port 80 closed, unable to run NIKTO${reset}"
-					echo -e "${Blue}[Skipping] Port 80 closed, unable to run WPSCAN${reset}"
-				fi
-				if [[ ! -z $dns ]]; then
-					if [[ $dig_enabled == "True" ]] || [[ -z $dig_enabled ]]; then
-						DIG
-					elif [[ $dig_enabled == "False" ]]; then
-						echo -e "${Red}[DIG] DIG DNS Scan has been disabled${reset}"
-					fi
-				else
-					echo -e "${Blue}[Skipping] Port 53 closed, unable to run DIG DNS Scan${reset}"
-				fi
-				linux_enum $@
-				if [[ ! -z $ssh ]]; then
-					if [[ ! -z $hydra_disabled ]]; then
-						echo -e "${Red}[HYDRA] HYDRA brutefore ssh attack has been disabled${reset}"
-					else
-						HYDRA $@
-					fi
-				else
-					echo -e "${Blue}[Skipping] Port 22 closed, unable to run HYDRA ssh brutefore attack${reset}"
-				fi
-				echo -e "${Green}[Finished] All scans complete thank you for using rubicon By: ${reset}${On_IRed}FalseBeliefs${reset}${reset}"
-				exit 1
-			fi
-		fi
-	fi
-
+    done
 }
 
 
-if [ "$EUID" -ne 0 ]; then 
-	echo -e "${Red}[NOTATION] Please run with sudo or as root"
- 	exit 1
-fi
+# Parse Arguments
+RunNMAP=false
+RunNMAPDeep=false
+RunWPScan=false
+WPScanOutputMode="both"
+RunGoBuster=false
+RunNikto=false
+GoBusterWLPath="/usr/share/wordlists/dirb/common.txt"
+RunEnum4Linux=false
+RunHydra=false
+RunTheHarvester=false
+RunAmass=false
+RunSubfinder=false
+RunSSLScan=false
+RunInstallDependencies=false
 
-if [[ -z $1 ]]; then
-	syntax
-	help="b"
-fi
-
-
-
-while getopts "h-helpZI:u:a:R:N:U:A:C:H:n:W:jbvozqlmsPpTDd" args; do
-	case "$args" in
-		-help) help="b"; syntax;;
-		h) help="b"; syntax;;
-		I) ip=${OPTARG};;
-		H) hostname=${OPTARG};;
-		u) u=${OPTARG};;
-		a) a=${OPTARG};;
-		U) U=${OPTARG};;
-		A) A=${OPTARG};;
-		C) combined_file=${OPTARG}; combined="True";;
-		j) hydra_defualt="True";;
-		b) hydra_disabled="True";;
-		v) wp_output="verbose";;
-		o) wp_output="output";;
-		z) wp_output="both";;
-		q) wp_diasbled="True";;
-		l) file_size="large"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-1.0.txt";;
-		m) file_size="medium"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt";;
-		s) file_size="small"; gobuster_file="/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt";;
-		R) range=${OPTARG};;
-		N) interface=${OPTARG};;
-		Z) update=True;;
-		P) deep=True;;
-		p) lose=True;;
-		T) skip_validation=True;;
-		D) dig_enabled="True";;
-		d) dig_enabled="False";;
-		n) stand_alone_nikto="True" ; nikto_host=${OPTARG};;
-		W) stand_alone_wpscan="True" ; wp_host=${OPTARG};;
-		E) enum_user=${OPTARG};;
-		F) enum_pass=${OPTARG};;
-	esac
+for arg in "$@"; do
+  if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+    syntax
+    exit 0
+  fi
 done
-start
 
-# Usable
-#
-#B
-#c
-#e
-#f
-#Gg
-#i
-#J
-#Kk
-#L
-#M
-#O
-#Q
-#r
-#S
-#t
-#Vv
-#w
-#Xx
-#Yy
-#z
+if [[ $# -eq 0 ]]; then
+  syntax
+  exit 1
+fi
+
+while getopts "I:O:NDdWKS:B:L:EU:P:u:p:C:GJFTZ" args; do
+  case "$args" in
+    I) host=${OPTARG} ;;
+    Z) RunInstallDependencies=true;;
+    G) RunTheHarvester=true;;
+    J) RunAmass=true;;
+    F) RunSubfinder=true;;
+    T) RunSSLScan=true;;
+    O) CustomOutputDir=${OPTARG} ;;
+    N) RunNMAP=true ;;
+    D) RunNMAPDeep=true ;;
+    d) RunNMAPDeep=false ;;
+    W) RunWPScan=true ;;
+    S) WPScanOutputMode=${OPTARG} ;;
+    K) RunNikto=true ;;
+    B) RunGoBuster=true ;;
+    F) MinFileSize=${OPTARG} ;;  # optional filter for output size
+    L) GoBusterWLPath=${OPTARG} ;;  # custom wordlist path
+    E) RunEnum4Linux=true ;;
+    A) RunHydra=true ;;
+    U) HydraUser=${OPTARG} ;;
+    P) HydraPass=${OPTARG} ;;
+    u) HydraUserList=${OPTARG} ;;
+    p) HydraPassList=${OPTARG} ;;
+    C) HydraComboList=${OPTARG} ;;
+  esac
+done
+
+function main {
+  $RunInstallDependencies && InstallDependencies
+  if [[ -z "$host" ]]; then
+    echo "[!] Error: Target IP (-I) is required."
+    exit 1
+  else
+    if [[ -n "$host" ]]; then
+      if IPAddrHandling "$host"; then
+        echo "[IP Address] Resolved IP: $ip"
+        CreateOutDir
+        PortTest
+        $RunNMAP && NMAP_Func
+        $RunEnum4Linux && Enum4LinuxFunc
+        $RunTheHarvester && TheHarvesterFunc
+        $RunAmass && AmassFunc
+        $RunSubfinder && SubfinderFunc
+        $RunSSLScan && SSLScanFunc
+        if $HTTPOpen; then
+          $RunWPScan && WPScanFunc
+          $RunGoBuster && GobusterFunc
+          $RunNikto && NiktoFunc
+        else
+          echo -e "[PortTest] Port 80 not open... cancelling related scans"
+        fi
+        if $SSHOpen; then
+          $RunHydra && HydraFunc
+        else
+          echo -e "[PortTest] Port 22 not open... cancelling related scans"
+        fi
+      else
+        echo "[IP Address] Host or IP invalid"
+        exit 1
+      fi
+    fi
+  fi
+}
+
+main
